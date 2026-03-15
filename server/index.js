@@ -7,6 +7,13 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const { createClient } = require('redis');
+const jwt = require('jsonwebtoken');
+
+// Models
+const User = require('./models/User');
+const Gig = require('./models/Gig');
+const Conversation = require('./models/Conversation');
+const Message = require('./models/Message');
 
 // Initialize Express
 const app = express();
@@ -30,6 +37,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // Middleware
 app.use(express.json());
 app.use((req, res, next) => {
+    req.io = io; // Attach Socket.io instance
     console.log(`🐾 ${req.method} ${req.url}`);
     next();
 });
@@ -52,31 +60,81 @@ app.put('/api/auth/profile', auth, authController.updateProfile);
 app.get('/api/gigs/public', gigController.getPublicGigs); 
 app.post('/api/gigs', auth, gigController.createGig);
 app.get('/api/gigs/dashboard', auth, gigController.getDashboardFeed);
+app.get('/api/gigs/feed', auth, gigController.getPaginatedGigs);
 app.post('/api/gigs/pounce/:id', auth, gigController.pounceGig);
 app.post('/api/gigs/complete/:id', auth, gigController.completeGig);
 
 // Chat Routes
 app.get('/api/chat/conversations', auth, chatController.getConversations);
+app.get('/api/chat/messages/:id', auth, chatController.getMessages);
+
+// Socket.io Middleware for Authentication
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token || socket.handshake.query.token;
+    if (!token) return next(new Error("Authentication error: No token provided"));
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) return next(new Error("Authentication error: Invalid token"));
+        socket.userId = decoded.id;
+        next();
+    });
+});
 
 // Socket.io Real-time Logic
-io.on('connection', (socket) => {
-    console.log('🐾 A Cat connected:', socket.id);
+io.on('connection', async (socket) => {
+    const userId = socket.userId;
+    console.log(`🐾 Cat ${userId} connected:`, socket.id);
     
+    // Add to Redis Presence
+    try {
+        await redisClient.sAdd('online_users', userId);
+        io.emit('user_status_change', { userId, status: 'online' });
+    } catch (err) {
+        console.error("❌ Redis Presence Error (Add):", err);
+    }
+
     socket.on('join_chat', (chatId) => {
         socket.join(chatId);
         console.log(`Cat joined chat room: ${chatId}`);
     });
 
-    socket.on('send_message', (data) => {
+    socket.on('check_online', async (targetUserId) => {
+        try {
+            const isOnline = await redisClient.sIsMember('online_users', targetUserId);
+            socket.emit('online_status', { userId: targetUserId, isOnline });
+        } catch (err) {
+            console.error("❌ Redis Presence Error (Check):", err);
+        }
+    });
+
+    socket.on('send_message', async (data) => {
         socket.to(data.chatId).emit('receive_message', data);
+        try {
+            const newMessage = new Message({
+                conversation: data.chatId,
+                sender: data.sender,
+                encryptedPayload: data.encryptedPayload,
+                timestamp: data.timestamp || new Date()
+            });
+            await newMessage.save();
+            await Conversation.findByIdAndUpdate(data.chatId, { lastMessageAt: new Date() });
+        } catch (err) {
+            console.error("❌ Message Persist Error:", err);
+        }
     });
 
     socket.on('gig_completed', (data) => {
         socket.to(data.chatId).emit('gig_completed_received', data);
     });
 
-    socket.on('disconnect', () => {
-        console.log('😿 A Cat disconnected');
+    socket.on('disconnect', async () => {
+        console.log(`😿 Cat ${userId} disconnected`);
+        try {
+            await redisClient.sRem('online_users', userId);
+            io.emit('user_status_change', { userId, status: 'offline' });
+        } catch (err) {
+            console.error("❌ Redis Presence Error (Remove):", err);
+        }
     });
 });
 

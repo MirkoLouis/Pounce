@@ -1,14 +1,79 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react';
+import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import RequestGigModal from '../components/RequestGigModal';
 import GigDetailsModal from '../components/GigDetailsModal';
 import ProfileModal from '../components/ProfileModal';
+import { globalSocket } from '../components/GlobalSetup';
 
-const GigCarousel = ({ title, icon: Icon, gigs, onGigClick }) => {
+const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user }) => {
     const scrollRef = useRef(null);
+    const [gigs, setGigs] = useState(initialGigs);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
+    useEffect(() => {
+        setGigs(initialGigs);
+    }, [initialGigs]);
+
+    // Handle Real-time updates for THIS carousel
+    useEffect(() => {
+        if (!globalSocket) return;
+
+        const handleNewGig = (newGig) => {
+            let shouldAdd = false;
+            if (category === 'all') shouldAdd = true;
+            else if (category === 'recommended' && user && newGig.targeted_expertises.includes(user.course)) shouldAdd = true;
+            else if (category === 'misc' && newGig.reward.type === 'CUSTOM') shouldAdd = true;
+
+            if (shouldAdd) {
+                setGigs(prev => {
+                    if (prev.find(g => g._id === newGig._id)) return prev;
+                    return [newGig, ...prev];
+                });
+            }
+        };
+
+        globalSocket.on('new_gig', handleNewGig);
+        return () => globalSocket.off('new_gig', handleNewGig);
+    }, [globalSocket, user, category]);
+
+    const fetchMore = useCallback(async () => {
+        if (loading || !hasMore || category === 'random') return;
+        setLoading(true);
+        try {
+            const nextPage = page + 1;
+            const res = await api.get(`/gigs/feed?category=${category}&page=${nextPage}&limit=10`);
+            
+            if (res.data.length === 0) {
+                setHasMore(false);
+            } else {
+                setGigs(prev => {
+                    // Filter out any duplicates that might have been added by real-time events
+                    const existingIds = new Set(prev.map(g => g._id));
+                    const newGigs = res.data.filter(g => !existingIds.has(g._id));
+                    return [...prev, ...newGigs];
+                });
+                setPage(nextPage);
+            }
+        } catch (err) {
+            console.error("Fetch more error:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [page, loading, hasMore, category]);
+
+    const handleScroll = () => {
+        if (!scrollRef.current) return;
+        const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+        // If we're within 200px of the end, fetch more
+        if (scrollWidth - (scrollLeft + clientWidth) < 300) {
+            fetchMore();
+        }
+    };
 
     const scroll = (direction) => {
         if (scrollRef.current) {
@@ -41,6 +106,7 @@ const GigCarousel = ({ title, icon: Icon, gigs, onGigClick }) => {
 
                 <div 
                     ref={scrollRef}
+                    onScroll={handleScroll}
                     className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-6 py-2"
                 >
                     {gigs.map((gig) => (
@@ -53,7 +119,7 @@ const GigCarousel = ({ title, icon: Icon, gigs, onGigClick }) => {
                             <div>
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-[9px] font-black text-alab-orange uppercase bg-orange-50 px-2 py-0.5 rounded-lg">
-                                        {gig.reward.type}
+                                        {gig.reward?.type}
                                     </span>
                                 </div>
                                 <h3 className="font-black text-slate-900 line-clamp-1 mb-1 text-base leading-tight group-hover/card:text-alab-orange transition-colors italic">{gig.title}</h3>
@@ -62,7 +128,7 @@ const GigCarousel = ({ title, icon: Icon, gigs, onGigClick }) => {
                             <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-50">
                                 <div className="h-8 flex items-center">
                                     <span className="text-[13px] font-black text-slate-900 line-clamp-2 leading-tight">
-                                        {gig.reward.type === 'PHP' ? `₱${gig.reward.value}` : gig.reward.value}
+                                        {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
                                     </span>
                                 </div>
                                 <span className="text-[9px] font-bold text-slate-400 group-hover/card:text-alab-orange transition-colors uppercase tracking-widest">
@@ -71,7 +137,12 @@ const GigCarousel = ({ title, icon: Icon, gigs, onGigClick }) => {
                             </div>
                         </motion.div>
                     ))}
-                    {gigs.length === 0 && (
+                    {loading && (
+                        <div className="min-w-[100px] flex items-center justify-center p-10">
+                            <Loader2 className="w-8 h-8 text-alab-orange animate-spin" />
+                        </div>
+                    )}
+                    {gigs.length === 0 && !loading && (
                         <div className="min-w-[300px] h-[200px] flex items-center justify-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-3xl italic">
                             No gigs here yet 😿
                         </div>
@@ -151,10 +222,10 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                <GigCarousel title="Recommended" icon={Sparkles} gigs={feed.recommended} onGigClick={setSelectedGig} />
-                <GigCarousel title="Live Ticker" icon={Zap} gigs={feed.all} onGigClick={setSelectedGig} />
-                <GigCarousel title="Misc Rewards" icon={Box} gigs={feed.misc} onGigClick={setSelectedGig} />
-                <GigCarousel title="Random Jobs" icon={Compass} gigs={feed.random} onGigClick={setSelectedGig} />
+                <GigCarousel title="Recommended" category="recommended" icon={Sparkles} initialGigs={feed.recommended} onGigClick={setSelectedGig} user={user} />
+                <GigCarousel title="Live Ticker" category="all" icon={Zap} initialGigs={feed.all} onGigClick={setSelectedGig} user={user} />
+                <GigCarousel title="Misc Rewards" category="misc" icon={Box} initialGigs={feed.misc} onGigClick={setSelectedGig} user={user} />
+                <GigCarousel title="Random Jobs" category="random" icon={Compass} initialGigs={feed.random} onGigClick={setSelectedGig} user={user} />
             </main>
 
             <button 

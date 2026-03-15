@@ -4,10 +4,12 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
+import GlobalSetup from './components/GlobalSetup';
 
 const App = () => {
   return (
     <Router>
+      <GlobalSetup />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

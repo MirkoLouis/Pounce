@@ -13,10 +13,10 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
     const handlePounce = async () => {
         setLoading(true);
         try {
-            await api.post(`/gigs/pounce/${gig._id}`);
+            const res = await api.post(`/gigs/pounce/${gig._id}`);
             alert("Pounce successful! Joining the squad... 🐾");
             onClose();
-            navigate('/chat');
+            navigate(`/chat?id=${res.data.conversationId}&pounce=true`);
         } catch (err) {
             alert(err.response?.data?.msg || "Error during pounce");
         } finally {
@@ -38,10 +38,10 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[650px]"
+                className="relative w-full max-w-5xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[650px]"
             >
                 {/* Image Section */}
-                <div className="md:w-1/2 bg-slate-100 relative overflow-hidden group">
+                <div className="md:w-1/2 bg-white relative overflow-hidden group">
                     {gig.images && gig.images.length > 0 ? (
                         <img 
                             src={gig.images[0]} 
@@ -65,7 +65,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                         <X className="w-5 h-5 text-slate-900" />
                     </button>
 
-                    <div className="p-6 md:p-8 overflow-y-auto">
+                    <div className="p-6 md:p-8 overflow-y-auto bg-white">
                         {/* Header */}
                         <div className="mb-4">
                             <div className="flex items-center gap-2 mb-2">
@@ -78,7 +78,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             </h2>
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
                                         <User className="w-4 h-4 text-slate-400" />
                                     </div>
                                     <div>
@@ -90,7 +90,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                         </div>
 
                         {/* Description */}
-                        <div className="mb-4 p-4 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                        <div className="mb-4 p-4 bg-white rounded-[1.5rem] border border-slate-100">
                             <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Zap className="w-3 h-3 text-alab-orange" /> Mission Details
                             </h3>
@@ -101,26 +101,32 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
 
                         {/* Info Rows */}
                         <div className="flex flex-col gap-3 mb-6">
-                            {/* Eligibility Row */}
+                            {/* Targeted Expertise Row */}
                             <div className="p-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm">
-                                <div className="flex items-center gap-2 mb-1.5">
+                                <div className="flex items-center gap-2 mb-2">
                                     <GraduationCap className="w-4 h-4 text-alab-orange" />
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Eligibility</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Targeted Expertise</p>
                                 </div>
-                                <p className="text-xs font-black text-slate-900 uppercase italic">
-                                    {gig.targeted_expertises && gig.targeted_expertises.length > 0 
-                                        ? gig.targeted_expertises.join(", ") 
-                                        : "Open to All Programs"}
-                                </p>
+                                <div className="flex flex-col gap-1.5">
+                                    {gig.targeted_expertises && gig.targeted_expertises.length > 0 ? (
+                                        gig.targeted_expertises.map((expertise, index) => (
+                                            <p key={index} className="text-[11px] font-black text-slate-900 uppercase italic border-l-2 border-orange-100 pl-3 py-0.5 leading-tight">
+                                                {expertise}
+                                            </p>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs font-black text-slate-900 uppercase italic">Open to All Programs</p>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Payout Row */}
-                            <div className="p-4 bg-alab-orange text-white rounded-[1.5rem] shadow-xl shadow-orange-100 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                            <div className="p-4 bg-alab-orange text-white rounded-[1.5rem] shadow-xl shadow-orange-100">
+                                <div className="flex items-center gap-2 mb-1.5">
                                     <Zap className="w-4 h-4 text-orange-100" />
                                     <p className="text-[9px] font-black text-orange-100 uppercase tracking-widest">Payout</p>
                                 </div>
-                                <p className="text-xl font-black italic uppercase leading-none">
+                                <p className="text-lg font-black italic uppercase leading-tight">
                                     {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
                                 </p>
                             </div>

@@ -28,7 +28,14 @@ exports.createGig = async (req, res) => {
             images,
             status: 'OPEN'
         });
-        const gig = await newGig.save();
+        let gig = await newGig.save();
+        
+        // Populate requester for the real-time feed
+        gig = await Gig.findById(gig._id).populate('requester', 'name college course');
+
+        // Emit to all connected clients
+        req.io.emit('new_gig', gig);
+
         res.status(201).json(gig);
     } catch (err) {
         console.error("❌ Gig Creation Error:", err);
@@ -36,7 +43,46 @@ exports.createGig = async (req, res) => {
     }
 };
 
-// Get Dashboard Feed (4 Categories)
+// Get Paginated Gigs for a specific category
+exports.getPaginatedGigs = async (req, res) => {
+    try {
+        const { category, page = 1, limit = 10 } = req.query;
+        const skip = (page - 1) * limit;
+        const userCourse = req.user.course;
+        const populateFields = 'name college course';
+
+        let query = { status: 'OPEN' };
+        let sort = { createdAt: -1 };
+
+        if (category === 'recommended') {
+            query.targeted_expertises = userCourse;
+        } else if (category === 'misc') {
+            query['reward.type'] = 'CUSTOM';
+        }
+
+        if (category === 'random') {
+            const randomGigs = await Gig.aggregate([
+                { $match: { status: 'OPEN' } },
+                { $sample: { size: parseInt(limit) } }
+            ]);
+            const populated = await User.populate(randomGigs, { path: "requester", select: populateFields });
+            return res.json(populated);
+        }
+
+        const gigs = await Gig.find(query)
+            .populate('requester', populateFields)
+            .sort(sort)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        res.json(gigs);
+    } catch (err) {
+        console.error("❌ Pagination Error:", err);
+        res.status(500).json({ msg: "Error fetching more gigs" });
+    }
+};
+
+// Get Dashboard Feed (Initial load)
 exports.getDashboardFeed = async (req, res) => {
     try {
         const userCourse = req.user.course;

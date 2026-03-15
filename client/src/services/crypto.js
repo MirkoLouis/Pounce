@@ -1,6 +1,40 @@
 // WhisperSquad E2EE Utility using Web Crypto API
 // Protocol: ECDH (P-256) for Key Exchange + AES-GCM for Content Encryption
 
+const DB_NAME = "WhisperSquadDB";
+const STORE_NAME = "keys";
+
+const getDB = () => {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const getOrGenerateKeyPair = async () => {
+    const db = await getDB();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const existing = await new Promise(resolve => {
+        const req = store.get("myKeyPair");
+        req.onsuccess = () => resolve(req.result);
+    });
+
+    if (existing) return existing;
+
+    const newKeyPair = await window.crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        true,
+        ["deriveKey"]
+    );
+
+    const saveTx = db.transaction(STORE_NAME, "readwrite");
+    saveTx.objectStore(STORE_NAME).put(newKeyPair, "myKeyPair");
+    return newKeyPair;
+};
+
 export const generateKeyPair = async () => {
     return await window.crypto.subtle.generateKey(
         { name: "ECDH", namedCurve: "P-256" },

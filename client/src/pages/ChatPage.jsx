@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cat, Send, User as UserIcon, Briefcase, ShieldCheck, Search, MessageSquareQuote, Lock, PartyPopper } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import io from 'socket.io-client';
+import { Cat, Send, User as UserIcon, Briefcase, ShieldCheck, Search, MessageSquareQuote, Lock, PartyPopper, Loader2 } from 'lucide-react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as crypto from '../services/crypto';
+import { globalSocket } from '../components/GlobalSetup';
 
 const ChatPage = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    
     const [conversations, setConversations] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [message, setMessage] = useState('');
@@ -15,51 +17,80 @@ const ChatPage = () => {
     const [currentUser, setCurrentUser] = useState(null);
     const [sharedKey, setSharedKey] = useState(null);
     const [gigStatus, setGigStatus] = useState('IN_PROGRESS');
+    const [isLoading, setIsLoading] = useState(true);
+    const [isOtherUserOnline, setIsOtherUserOnline] = useState(false);
     
-    const socketRef = useRef();
     const scrollRef = useRef();
     const myKeyPair = useRef(null);
+    const autoMessageSent = useRef(false);
 
+    // 1. Initial Data Fetch (Socket is now global)
     useEffect(() => {
-        socketRef.current = io('/', { path: '/api/socket.io' });
-
-        const setup = async () => {
+        const init = async () => {
             try {
-                myKeyPair.current = await crypto.generateKeyPair();
-                const pubKeyBase64 = await crypto.exportPublicKey(myKeyPair.current.publicKey);
+                myKeyPair.current = await crypto.getOrGenerateKeyPair();
+                const [userRes, chatRes] = await Promise.all([
+                    api.get('/auth/me'),
+                    api.get('/chat/conversations')
+                ]);
 
-                const userRes = await api.get('/auth/me');
                 setCurrentUser(userRes.data);
-
-                await api.put('/auth/profile', { publicKey: pubKeyBase64 });
-
-                const res = await api.get('/chat/conversations');
-                setConversations(res.data);
+                setConversations(chatRes.data);
+                setIsLoading(false);
             } catch (err) {
-                console.error("Setup Error:", err);
+                console.error("Initialization Error:", err);
+                if (err.response?.status === 401) navigate('/login');
+                else setIsLoading(false);
             }
         };
-        setup();
+        init();
+    }, [navigate]);
 
-        return () => socketRef.current.disconnect();
-    }, []);
-
+    // 2. Handle Chat Selection
     useEffect(() => {
-        if (selectedChat && currentUser) {
-            socketRef.current.emit('join_chat', selectedChat._id);
+        const chatId = searchParams.get('id');
+        if (chatId && conversations.length > 0) {
+            const chatToSelect = conversations.find(c => c._id === chatId);
+            if (chatToSelect && (!selectedChat || selectedChat._id !== chatId)) {
+                setSelectedChat(chatToSelect);
+            }
+        }
+    }, [searchParams, conversations, selectedChat]);
+
+    // 3. Socket Room Join & Handshake & Online Presence
+    useEffect(() => {
+        if (selectedChat && currentUser && globalSocket) {
+            globalSocket.emit('join_chat', selectedChat._id);
             setMessages([]);
             setSharedKey(null);
             setGigStatus(selectedChat.gig?.status || 'IN_PROGRESS');
 
+            const otherCat = selectedChat.members.find(m => m._id !== currentUser._id);
+            
+            // Initial online check
+            if (otherCat) {
+                globalSocket.emit('check_online', otherCat._id);
+            }
+
             const performHandshake = async () => {
-                const otherCat = selectedChat.members.find(m => m._id !== currentUser._id);
                 if (otherCat?.publicKey) {
                     try {
                         const importedPubKey = await crypto.importPublicKey(otherCat.publicKey);
                         const derived = await crypto.deriveSharedSecret(myKeyPair.current.privateKey, importedPubKey);
                         setSharedKey(derived);
+
+                        const historyRes = await api.get(`/chat/messages/${selectedChat._id}`);
+                        const decryptedHistory = await Promise.all(historyRes.data.map(async (msg) => {
+                            try {
+                                const text = await crypto.decryptMessage(msg.encryptedPayload, derived);
+                                return { ...msg, text };
+                            } catch (e) {
+                                return { ...msg, text: "[Decryption Failed]" };
+                            }
+                        }));
+                        setMessages(decryptedHistory);
                     } catch (err) {
-                        console.error("Handshake Failed:", err);
+                        console.error("Handshake/History Error:", err);
                     }
                 }
             };
@@ -67,27 +98,75 @@ const ChatPage = () => {
         }
     }, [selectedChat, currentUser]);
 
+    // 4. Message & Presence Listeners
     useEffect(() => {
+        if (!globalSocket) return;
+
         const handleNewMessage = async (data) => {
             if (data.chatId === selectedChat?._id && sharedKey) {
-                const decryptedText = await crypto.decryptMessage(data.encryptedPayload, sharedKey);
-                setMessages(prev => [...prev, { ...data, text: decryptedText }]);
+                try {
+                    const decryptedText = await crypto.decryptMessage(data.encryptedPayload, sharedKey);
+                    setMessages(prev => [...prev, { ...data, text: decryptedText }]);
+                } catch (err) {
+                    console.error("Decryption error:", err);
+                }
             }
         };
 
-        const handleGigCompleted = (data) => {
-            if (data.chatId === selectedChat?._id) {
-                setGigStatus('COMPLETED');
+        const handleStatusChange = (data) => {
+            const otherCat = selectedChat?.members.find(m => m._id !== currentUser?._id);
+            if (otherCat && data.userId === otherCat._id) {
+                setIsOtherUserOnline(data.status === 'online');
             }
         };
 
-        socketRef.current.on('receive_message', handleNewMessage);
-        socketRef.current.on('gig_completed_received', handleGigCompleted);
+        const handleOnlineStatus = (data) => {
+            const otherCat = selectedChat?.members.find(m => m._id !== currentUser?._id);
+            if (otherCat && data.userId === otherCat._id) {
+                setIsOtherUserOnline(data.isOnline);
+            }
+        };
+
+        globalSocket.on('receive_message', handleNewMessage);
+        globalSocket.on('user_status_change', handleStatusChange);
+        globalSocket.on('online_status', handleOnlineStatus);
+        globalSocket.on('gig_completed_received', (data) => {
+            if (data.chatId === selectedChat?._id) setGigStatus('COMPLETED');
+        });
+        
         return () => {
-            socketRef.current.off('receive_message');
-            socketRef.current.off('gig_completed_received');
+            globalSocket.off('receive_message', handleNewMessage);
+            globalSocket.off('user_status_change', handleStatusChange);
+            globalSocket.off('online_status', handleOnlineStatus);
+            globalSocket.off('gig_completed_received');
         };
-    }, [selectedChat, sharedKey]);
+    }, [selectedChat, sharedKey, currentUser]);
+
+    // 5. Automatic Pounce Intro Message
+    useEffect(() => {
+        const isPounce = searchParams.get('pounce') === 'true';
+
+        if (isPounce && sharedKey && currentUser && selectedChat && !autoMessageSent.current) {
+            const sendAutoMessage = async () => {
+                let text = currentUser.auto_pounce_message || "Hello! I'm interested in this gig.";
+                text = text.replace("[Name]", currentUser.name.split(' ')[0])
+                           .replace("[College]", currentUser.college);
+
+                const encryptedPayload = await crypto.encryptMessage(text, sharedKey);
+                const messageData = {
+                    chatId: selectedChat._id,
+                    sender: currentUser._id,
+                    encryptedPayload,
+                    timestamp: new Date()
+                };
+
+                globalSocket.emit('send_message', messageData);
+                setMessages(prev => [...prev, { ...messageData, text }]);
+                autoMessageSent.current = true;
+            };
+            sendAutoMessage();
+        }
+    }, [sharedKey, currentUser, selectedChat, searchParams]);
 
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -105,7 +184,7 @@ const ChatPage = () => {
             timestamp: new Date()
         };
 
-        socketRef.current.emit('send_message', messageData);
+        globalSocket.emit('send_message', messageData);
         setMessages(prev => [...prev, { ...messageData, text: message }]);
         setMessage('');
     };
@@ -116,13 +195,20 @@ const ChatPage = () => {
         try {
             await api.post(`/gigs/complete/${selectedChat.gig._id}`);
             setGigStatus('COMPLETED');
-            socketRef.current.emit('gig_completed', { chatId: selectedChat._id });
+            globalSocket.emit('gig_completed', { chatId: selectedChat._id });
         } catch (err) {
             alert("Error completing gig");
         }
     };
 
-    const isRequester = selectedChat?.gig?.requester === currentUser?._id;
+    if (isLoading) {
+        return (
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
+                <Loader2 className="w-12 h-12 text-alab-orange animate-spin" />
+                <p className="font-black text-slate-400 uppercase tracking-widest text-sm italic">Waking up the Pride...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen bg-white font-sans overflow-hidden text-slate-900">
@@ -174,6 +260,9 @@ const ChatPage = () => {
                             </div>
                         </div>
                     ))}
+                    {conversations.length === 0 && (
+                        <p className="text-center text-slate-400 font-bold text-xs uppercase italic mt-10 opacity-50">No whispers yet 😿</p>
+                    )}
                 </div>
             </div>
 
@@ -196,8 +285,12 @@ const ChatPage = () => {
                                             </>
                                         ) : sharedKey ? (
                                             <>
-                                                <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Whisper P2P Active</span>
+                                                <ShieldCheck className={`w-3.5 h-3.5 ${isOtherUserOnline ? 'text-green-500' : 'text-slate-300'}`} />
+                                                <span className={`text-[10px] font-black uppercase tracking-widest ${isOtherUserOnline ? 'text-green-500' : 'text-slate-400'}`}>
+                                                    {isOtherUserOnline ? 'Cat is Online' : 'Cat is Away'}
+                                                </span>
+                                                <span className="text-[10px] text-slate-300 mx-1">•</span>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Whisper E2EE</span>
                                             </>
                                         ) : selectedChat?.members.find(m => m._id !== currentUser?._id)?.publicKey ? (
                                             <>
@@ -213,7 +306,7 @@ const ChatPage = () => {
                                     </div>
                                 </div>
                             </div>
-                            {isRequester && gigStatus !== 'COMPLETED' && (
+                            {selectedChat.gig?.requester === currentUser?._id && gigStatus !== 'COMPLETED' && (
                                 <button 
                                     onClick={handleCompleteGig}
                                     className="px-6 py-2 bg-alab-orange hover:bg-orange-600 text-white shadow-lg shadow-orange-100 rounded-xl text-[10px] font-black transition-all uppercase tracking-tighter active:scale-95"

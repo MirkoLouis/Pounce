@@ -40,3 +40,5 @@ Thumbs.db
 .gemini/
 .geminiignore
 .context7/
+dump.rdb
+*.rdb

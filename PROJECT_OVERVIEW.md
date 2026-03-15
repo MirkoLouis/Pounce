@@ -18,37 +18,30 @@ graph TD
 
 ## 🔐 WhisperChat & The "First Pounce" Flow 
 WhisperChat is more than just messaging; it's a secure handshake. 
-1. **The Pounce Action:** When a student clicks "Pounce" on a job, a WebSocket signal is sent to the requester.
-2. **Auto-Initialization:** A new chat document is created. The Pouncer's browser automatically sends their **Custom Auto-Message** (e.g., *"Hi! I'm [Name] from CCS, I've done similar projects before. Let's talk!"*).
-3. **P2P Establishment:** A WebRTC Data Channel is formed between the two users. All subsequent communication is P2P and encrypted.
-4. **Finalization:** The Requester's chat view includes a **"Job Done/Paid"** button. Clicking this updates the Gig status in MongoDB and triggers a "Payment Confirmed" visual in the chat for both parties. 
+1. **The Pounce Action:** Clicking "Pounce" creates a new conversation and redirects the user directly to the chat interface.
+2. **Auto-Initialization:** The Pouncer's browser automatically sends their **Custom Auto-Message** (e.g., *"Hi! I'm [Name] from [College]..."*) as soon as the E2EE handshake is complete.
+3. **E2EE Handshake:** Clients use **ECDH (P-256)** to derive a shared secret. Key pairs are persisted in **IndexedDB** to ensure continuity across sessions.
+4. **History Persistence:** Encrypted payloads (IV + Ciphertext) are stored on the server in the `Messages` collection. The server remains blind to the content, while clients fetch and decrypt history upon joining.
+5. **Finalization:** The Requester marks jobs as "Done/Paid," updating MongoDB and triggering a "Payment Confirmed" visual for all squad members.
 
 ## 🔐 WhisperSquad: Group E2EE
-1. **The Handshake:** When a Pouncer joins a "Squad," they perform a WebRTC handshake with the Requester (the *Squad Leader*).
-2. **Relay Logic:** For Group Chat, the Requester acts as a signaling node to ensure all Pouncers are synchronized.
-3. **Encryption:** Each message is encrypted separately for each member of the Squad. Even with multiple "Cats" in the room, the data remains private and unreadable to the server.
+1. **The Handshake:** When a Pouncer joins a "Squad," they perform a WebRTC-ready handshake with the Requester.
+2. **Relay Logic:** Sockets relay the encrypted payloads. Each member decrypts the data locally using their unique private key and the shared secret.
+3. **Encryption:** AES-GCM 256-bit encryption ensures that data remains private and unreadable to the server or any unauthorized "Cat."
 
 ## 💾 Refined Database Strategy
 
 ### MongoDB (Persistence)
-- **Users Collection:** 
-  - `_id`, `name`, `msu_email`, `college`, `course`, `skills[]`, `rating`.
-  - `auto_pounce_message`: A user-editable string for their first message when pouncing.
-- **Gigs Collection:** 
-  - `_id`, `requester_id`, `pouncer_ids[]`: Array of students who have joined the squad.
-  - `title`, `description` (max 500).
-  - `images`: Array of up to 10 image URLs.
-  - `targeted_expertises`: Array of Course IDs (supports multi-college targeting).
-  - `reward`: Object containing `{ type: 'PHP' | 'CUSTOM', value: string }`.
-  - `status`: `OPEN`, `IN_PROGRESS`, `COMPLETED`.
+- **Users Collection:** `_id`, `name`, `msu_email`, `college`, `course`, `publicKey`, `auto_pounce_message`.
+- **Gigs Collection:** `_id`, `requester_id`, `pouncer_ids[]`, `title`, `description`, `targeted_expertises`, `reward`, `status`.
+- **Messages Collection:** `conversation_id`, `sender_id`, `encryptedPayload`, `timestamp`. Stores only encrypted hashes.
 
 ### Redis (Speed & Real-time)
-- **Dashboard Feed:** Caches the "Top 5" for each carousel (All, Recommended, Misc, Random) to ensure near-instant loading.
-- **Presence List:** Tracks which Cats are online to show a "Last active" status in chat.
-- **Signaling:** Handles the "Offer/Answer" exchange for WebRTC.
+- **Presence List:** Tracks online/offline status using a Redis Set (`online_users`). Updates are broadcasted globally via `user_status_change` events.
+- **Real-time Feed:** Supports immediate "Live Ticker" updates when new gigs are posted.
 
-## 🎓 Multi-Expertise Selection Logic
-Requesters no longer choose a single college. Instead, the modal allows:
-1. **Multi-Select College:** Choose one or more (e.g., *CCS* and *COET*).
-2. **Filtered Course Checkbox:** Upon selecting a college, a list of its courses appears. The user can check as many as they want (e.g., *BS Computer Science* + *BS Mechanical Engineering*).
-3. **Recommendation Engine:** The "Recommended Jobs" carousel for a Pouncer is filtered by matching these checked courses against the Pouncer's own degree program.
+## 🎓 Infinite Scroll & Live Feed Logic
+The Dashboard uses a hybrid approach for efficiency:
+1. **Initial Load:** Fetches the first 10-20 gigs for All, Recommended, Misc, and Random categories.
+2. **Infinite Scroll:** Each carousel independently detects when a user is near the end and fetches the next page via `/api/gigs/feed`.
+3. **Live Injection:** Socket events (`new_gig`) inject new tasks into the front of the carousels in real-time, using ID deduplication to prevent conflicts with paginated results.
