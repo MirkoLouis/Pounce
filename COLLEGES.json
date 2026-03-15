@@ -1,0 +1,180 @@
+{
+  "colleges": [
+    {
+      "id": "CASS",
+      "name": "College of Arts & Social Sciences",
+      "acronym": "CASS",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Arts in English",
+          "Bachelor of Science in Psychology",
+          "Bachelor of Arts in Filipino",
+          "Bachelor of Arts in History",
+          "Bachelor of Arts in Political Science",
+          "General Education Program"
+        ],
+        "graduate": [
+          "Doctor of Philosophy in English Language Studies",
+          "Doctor of Philosophy in Filipino",
+          "Doctor of Philosophy in Public Policy and Governance",
+          "Doctor of Philosophy in Sociology",
+          "Master of Arts in English Language Studies",
+          "Master of Arts in Filipino",
+          "Master of Arts in Panitikan",
+          "Master of History",
+          "Master of Arts in History",
+          "Master of Arts in Political Science",
+          "Master in Public Administration",
+          "Master of Arts in Sociology"
+        ]
+      }
+    },
+    {
+      "id": "COET",
+      "name": "College of Engineering and Technology",
+      "acronym": "COET",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Science in Civil Engineering",
+          "Bachelor of Science in Ceramics Engineering",
+          "Bachelor of Science in Chemical Engineering",
+          "Bachelor of Science in Computer Engineering",
+          "Bachelor of Science in Electronics & Communications Engineering",
+          "Bachelor of Science in Electrical Engineering",
+          "Bachelor of Science in Mining Engineering",
+          "Bachelor of Science in Mechanical Engineering",
+          "Bachelor of Science in Metallurgical Engineering",
+          "Bachelor of Science in Industrial Automation & Mechatronics",
+          "Bachelor of Science in Engineering Technology Management",
+          "Diploma in Chemical Engineering Technology",
+          "Diploma in Industrial Automation Maintenance Technology",
+          "Diploma in Automotive Engineering Technology",
+          "Diploma in Electrical Engineering Technology",
+          "Diploma in Mechanical Engineering Technology",
+          "Diploma in Civil Engineering Technology",
+          "Diploma in Heating, Ventilating, Air-Conditioning & Refrigeration Engineering Technology"
+        ],
+        "graduate": [
+          "Doctor of Engineering",
+          "Master of Engineering",
+          "Master of Science in Civil Engineering",
+          "Master of Science in Electrical Engineering",
+          "Master of Science in Mechanical Engineering",
+          "Master of Science in Materials Science and Engineering"
+        ]
+      }
+    },
+    {
+      "id": "CSM",
+      "name": "College of Science & Mathematics",
+      "acronym": "CSM",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Science in Biology (Botany)",
+          "Bachelor of Science in Biology (Zoology)",
+          "Bachelor of Science in Biology (Marine)",
+          "Bachelor of Science in Biology (General)",
+          "Bachelor of Science in Chemistry",
+          "Bachelor of Science in Mathematics",
+          "Bachelor of Science in Physics",
+          "Bachelor of Science in Statistics"
+        ],
+        "graduate": [
+          "Doctor of Philosophy in Biology",
+          "Doctor of Philosophy in Chemistry",
+          "Doctor of Philosophy in Environmental Science",
+          "Doctor of Philosophy in Marine Science",
+          "Doctor of Philosophy in Mathematics",
+          "Doctor of Philosophy in Physics",
+          "Doctor of Philosophy in Statistics",
+          "Master of Science in Biology",
+          "Master of Science in Chemistry",
+          "Master of Science in Environmental Science",
+          "Master of Science in Marine Biology",
+          "Master of Science in Mathematics",
+          "Master of Science in Physics",
+          "Master of Science in Statistics",
+          "Master of Applied Statistics"
+        ]
+      }
+    },
+    {
+      "id": "CED",
+      "name": "College of Education",
+      "acronym": "CED",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Elementary Education (English)",
+          "Bachelor of Elementary Education (Science and Health)",
+          "Bachelor of Secondary Education (Biology)",
+          "Bachelor of Secondary Education (Chemistry)",
+          "Bachelor of Secondary Education (Physics)",
+          "Bachelor of Secondary Education (Mathematics)",
+          "Bachelor of Secondary Education (MAPEH)",
+          "Bachelor of Secondary Education (TLE)",
+          "Bachelor of Secondary Education (General Science)",
+          "Bachelor of Science in Industrial Education (Drafting)",
+          "Bachelor of Science in Technology Teacher Education (Industrial Tech)",
+          "Bachelor of Science in Technology Teacher Education (Drafting Tech)",
+          "Certificate Program for Teachers"
+        ],
+        "graduate": [
+          "Doctor of Philosophy in Science Education",
+          "Master of Arts in Education (Guidance and Counseling)",
+          "Master of Arts in Education (Reading)",
+          "Master of Science Education",
+          "Master of Science in Physical Education"
+        ]
+      }
+    },
+    {
+      "id": "CBAA",
+      "name": "College of Business Administration & Accountancy",
+      "acronym": "CBAA",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Science in Accountancy",
+          "Bachelor of Science in Hotel and Restaurant Management",
+          "Bachelor of Science in Business Administration (Business Economics)",
+          "Bachelor of Science in Business Administration (Economics)",
+          "Bachelor of Science in Business Administration (Entrepreneurial Marketing)"
+        ],
+        "graduate": [
+          "Doctor in Business Administration",
+          "Master in Business Administration"
+        ]
+      }
+    },
+    {
+      "id": "CCS",
+      "name": "College of Computer Studies",
+      "acronym": "CCS",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Science in Computer Science",
+          "Bachelor of Science in Information Technology",
+          "Bachelor of Science in Information Systems",
+          "Bachelor of Science in Electronics and Computer Technology",
+          "Diploma in Electronics Engineering Tech (Computer Electronics)",
+          "Diploma in Electronics Technology"
+        ],
+        "graduate": [
+          "Master of Science in Computer Science",
+          "Master of Science in Information Technology",
+          "Master of Science in Computer Applications"
+        ]
+      }
+    },
+    {
+      "id": "CHS",
+      "name": "College of Health Sciences",
+      "acronym": "CHS",
+      "programs": {
+        "undergraduate": [
+          "Bachelor of Science in Nursing"
+        ],
+        "graduate": []
+      }
+    }
+  ]
+}

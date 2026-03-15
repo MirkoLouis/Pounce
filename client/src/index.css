@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-alab-orange: #FF8C00;
+  --color-alab-dark: #1a1a1a;
+}
+
+:root {
+  background-color: #f8fafc;
+}
+
+/* Custom Hide Scrollbar Utilities */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
