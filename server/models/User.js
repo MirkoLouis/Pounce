@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema({
         default: "Hello I'm [Name], I'm a student from [College] and I want to help you with this job." 
     },
     publicKey: String, // Store ECDH Public Key (Base64)
+    isOnline: { type: Boolean, default: false },
+    lastSeen: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

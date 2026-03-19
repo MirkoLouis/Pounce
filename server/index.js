@@ -6,7 +6,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
-const { createClient } = require('redis');
 const jwt = require('jsonwebtoken');
 
 // Models
@@ -23,19 +22,34 @@ const io = new Server(server, {
     cors: { origin: "*" }
 });
 
-// Redis Connection
-const redisClient = createClient({ url: process.env.REDIS_URL });
-redisClient.connect()
-    .then(() => console.log('✅ Connected to Redis'))
-    .catch(err => console.error('❌ Redis Connection Error:', err));
-
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
+// Presence tracking (in-memory for multi-tab handling, synced to MongoDB)
+const onlineCats = new Map(); // userId -> Set of socket IDs
+
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Track activity for all /api routes
+app.use(async (req, res, next) => {
+    // Attempt to track activity if a token is present
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            // Only update if it's been more than a minute (to save DB ops)
+            // But for this project, let's just do a simple update
+            await User.findByIdAndUpdate(decoded.id, { lastSeen: new Date() });
+        } catch (e) { /* Invalid token */ }
+    }
+    next();
+});
+
 app.use((req, res, next) => {
     req.io = io; // Attach Socket.io instance
     console.log(`🐾 ${req.method} ${req.url}`);
@@ -85,12 +99,19 @@ io.on('connection', async (socket) => {
     const userId = socket.userId;
     console.log(`🐾 Cat ${userId} connected:`, socket.id);
     
-    // Add to Redis Presence
+    // Join personal room and update MongoDB presence
     try {
-        await redisClient.sAdd('online_users', userId);
-        io.emit('user_status_change', { userId, status: 'online' });
+        socket.join(`user_${userId}`);
+
+        if (!onlineCats.has(userId)) {
+            onlineCats.set(userId, new Set());
+            // First tab/session: Mark online in DB and notify others
+            await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
+            io.emit('user_status_change', { userId, status: 'online' });
+        }
+        onlineCats.get(userId).add(socket.id);
     } catch (err) {
-        console.error("❌ Redis Presence Error (Add):", err);
+        console.error("❌ Presence Error (Connect):", err);
     }
 
     socket.on('join_chat', (chatId) => {
@@ -100,26 +121,51 @@ io.on('connection', async (socket) => {
 
     socket.on('check_online', async (targetUserId) => {
         try {
-            const isOnline = await redisClient.sIsMember('online_users', targetUserId);
-            socket.emit('online_status', { userId: targetUserId, isOnline });
+            const user = await User.findById(targetUserId).select('isOnline lastSeen');
+            socket.emit('online_status', { 
+                userId: targetUserId, 
+                isOnline: !!user?.isOnline,
+                lastSeen: user?.lastSeen 
+            });
         } catch (err) {
-            console.error("❌ Redis Presence Error (Check):", err);
+            console.error("❌ Presence Error (Check):", err);
         }
     });
 
     socket.on('send_message', async (data) => {
-        socket.to(data.chatId).emit('receive_message', data);
+        // 1. Save to database FIRST for reliability
         try {
             const newMessage = new Message({
                 conversation: data.chatId,
-                sender: data.sender,
+                sender: userId,
                 encryptedPayload: data.encryptedPayload,
                 timestamp: data.timestamp || new Date()
             });
             await newMessage.save();
             await Conversation.findByIdAndUpdate(data.chatId, { lastMessageAt: new Date() });
+            
+            // Also update sender's activity for AFK/Away calculation
+            await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+
+            const messageToEmit = { ...data, _id: newMessage._id };
+
+            // Broadcast to the personal rooms of ALL members (except sender)
+            const conv = await Conversation.findById(data.chatId).select('members');
+            if (conv) {
+                conv.members.forEach(memberId => {
+                    const memberStr = memberId.toString();
+                    if (memberStr === userId) {
+                        // Send to the sender's OTHER tabs/sessions (excludes current socket)
+                        socket.to(`user_${memberStr}`).emit('receive_message', messageToEmit);
+                    } else {
+                        // Send to the other member's sessions
+                        io.to(`user_${memberStr}`).emit('receive_message', messageToEmit);
+                    }
+                });
+            }
         } catch (err) {
-            console.error("❌ Message Persist Error:", err);
+            console.error("❌ Message Persist/Send Error:", err);
+            socket.emit('error', { msg: "Failed to send message" });
         }
     });
 
@@ -130,16 +176,31 @@ io.on('connection', async (socket) => {
     socket.on('disconnect', async () => {
         console.log(`😿 Cat ${userId} disconnected`);
         try {
-            await redisClient.sRem('online_users', userId);
-            io.emit('user_status_change', { userId, status: 'offline' });
+            const userSockets = onlineCats.get(userId);
+            if (userSockets) {
+                userSockets.delete(socket.id);
+                if (userSockets.size === 0) {
+                    onlineCats.delete(userId);
+                    // Last tab closed: Mark offline in DB and notify others
+                    await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
+                    io.emit('user_status_change', { userId, status: 'offline' });
+                }
+            }
         } catch (err) {
-            console.error("❌ Redis Presence Error (Remove):", err);
+            console.error("❌ Presence Error (Disconnect):", err);
         }
     });
 });
 
 // Basic Routes
 app.get('/api/health', (req, res) => res.json({ status: 'Pouncing!' }));
+
+// System Routes (Internal Reset)
+app.get('/api/system/force-logout-all', (req, res) => {
+    io.emit('force_logout');
+    console.log('📢 GLOBAL LOGOUT BROADCAST SENT (DB RESET)');
+    res.json({ success: true });
+});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import RequestGigModal from '../components/RequestGigModal';
 import GigDetailsModal from '../components/GigDetailsModal';
 import ProfileModal from '../components/ProfileModal';
-import { globalSocket } from '../components/GlobalSetup';
+import { useSocket } from '../components/GlobalSetup';
 
 const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user }) => {
     const scrollRef = useRef(null);
@@ -14,6 +14,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
+    const socket = useSocket();
 
     useEffect(() => {
         setGigs(initialGigs);
@@ -21,7 +22,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
 
     // Handle Real-time updates for THIS carousel
     useEffect(() => {
-        if (!globalSocket) return;
+        if (!socket) return;
 
         const handleNewGig = (newGig) => {
             let shouldAdd = false;
@@ -37,9 +38,25 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
             }
         };
 
-        globalSocket.on('new_gig', handleNewGig);
-        return () => globalSocket.off('new_gig', handleNewGig);
-    }, [globalSocket, user, category]);
+        const handleGigStatusUpdate = (updatedGig) => {
+            setGigs(prev => {
+                // If it's no longer OPEN, remove it from all carousels (since they usually show OPEN gigs)
+                if (updatedGig.status !== 'OPEN') {
+                    return prev.filter(g => g._id !== updatedGig._id);
+                }
+                // If it's still open but details changed, update it
+                return prev.map(g => g._id === updatedGig._id ? updatedGig : g);
+            });
+        };
+
+        socket.on('new_gig', handleNewGig);
+        socket.on('gig_status_update', handleGigStatusUpdate);
+
+        return () => {
+            socket.off('new_gig', handleNewGig);
+            socket.off('gig_status_update', handleGigStatusUpdate);
+        };
+    }, [socket, user, category]);
 
     const fetchMore = useCallback(async () => {
         if (loading || !hasMore || category === 'random') return;
@@ -162,6 +179,7 @@ const Dashboard = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [selectedGig, setSelectedGig] = useState(null);
+    const socket = useSocket();
 
     const fetchDashboard = async () => {
         try {
@@ -184,6 +202,18 @@ const Dashboard = () => {
     useEffect(() => {
         fetchDashboard();
     }, []);
+
+    // Listen for new conversations to update the notification dot
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleNewConversation = () => {
+            setConversationsCount(prev => prev + 1);
+        };
+
+        socket.on('new_conversation', handleNewConversation);
+        return () => socket.off('new_conversation', handleNewConversation);
+    }, [socket]);
 
     return (
         <div className="min-h-screen bg-slate-50 pb-32">

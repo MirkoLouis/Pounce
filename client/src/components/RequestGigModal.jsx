@@ -41,20 +41,55 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         }));
     };
 
+    const handleNext = () => {
+        if (step === 1) {
+            if (!formData.title.trim()) return alert("Please provide a gig title 🐾");
+            if (!formData.description.trim()) return alert("Please provide a description 🐾");
+            setStep(2);
+        } else if (step === 2) {
+            if (selectedColleges.length === 0) return alert("Please select at least one college 🐾");
+            if (formData.targeted_expertises.length === 0) return alert("Please select at least one specific expertise 🐾");
+            setStep(3);
+        }
+    };
+
+    const handleRewardChange = (val) => {
+        if (formData.reward.type === 'PHP') {
+            const cleaned = val.replace(/[^0-9]/g, '');
+            setFormData({ ...formData, reward: { ...formData.reward, value: cleaned } });
+        } else {
+            if (val.length <= 50) {
+                setFormData({ ...formData, reward: { ...formData.reward, value: val } });
+            }
+        }
+    };
+
     const handleImageUpload = (e) => {
         const files = Array.from(e.target.files);
         if (formData.images.length + files.length > 10) {
             alert("Maximum 10 images allowed 🐾");
             return;
         }
-        // Simulated upload: convert to base64 or object URLs
-        const newImages = files.map(file => URL.createObjectURL(file));
-        setFormData({ ...formData, images: [...formData.images, ...newImages] });
+
+        const uploadPromises = files.map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(file);
+            });
+        });
+
+        Promise.all(uploadPromises).then(newImages => {
+            setFormData(prev => ({
+                ...prev,
+                images: [...prev.images, ...newImages]
+            }));
+        });
     };
 
     const handleSubmit = async () => {
-        if (!formData.title || !formData.description || formData.targeted_expertises.length === 0) {
-            alert("Please fill in all required fields.");
+        if (!formData.title || !formData.description || formData.targeted_expertises.length === 0 || !formData.reward.value) {
+            alert("Please fill in all required fields, including the reward.");
             return;
         }
         setLoading(true);
@@ -255,8 +290,9 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                                 <input 
                                     className="w-full px-6 py-4 bg-slate-100 rounded-3xl focus:ring-2 focus:ring-alab-orange outline-none font-black text-lg"
                                     placeholder={formData.reward.type === 'PHP' ? '0.00' : 'e.g., Will treat you to lunch!'}
+                                    maxLength={formData.reward.type === 'CUSTOM' ? 50 : undefined}
                                     value={formData.reward.value}
-                                    onChange={e => setFormData({...formData, reward: { ...formData.reward, value: e.target.value }})}
+                                    onChange={e => handleRewardChange(e.target.value)}
                                 />
                             </div>
                         </motion.div>
@@ -273,7 +309,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                     </button>
                     
                     <button 
-                        onClick={() => step < 3 ? setStep(step + 1) : handleSubmit()}
+                        onClick={() => step < 3 ? handleNext() : handleSubmit()}
                         disabled={loading}
                         className="px-8 py-3 bg-alab-orange text-white font-black rounded-2xl shadow-lg hover:bg-orange-600 transition-all flex items-center gap-2 group"
                     >

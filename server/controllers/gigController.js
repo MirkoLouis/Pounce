@@ -143,8 +143,28 @@ exports.pounceGig = async (req, res) => {
             return res.status(400).json({ msg: "You cannot pounce on a request you personally made." });
         }
 
+        // Initialize or find Conversation
+        let conversation = await Conversation.findOne({ gig: gig._id });
+        if (!conversation) {
+            conversation = new Conversation({
+                gig: gig._id,
+                members: [gig.requester._id]
+            });
+        }
+        
+        // Add current user if not already in conversation
+        if (!conversation.members.includes(req.user.id)) {
+            conversation.members.push(req.user.id);
+        }
+        await conversation.save();
+
         if (gig.pouncers.includes(req.user.id)) {
-            return res.status(400).json({ msg: "You have already pounced on this gig!" });
+            return res.json({ 
+                msg: "You are already in this squad!", 
+                gig,
+                requester: gig.requester,
+                conversationId: conversation._id
+            });
         }
 
         gig.pouncers.push(req.user.id);
@@ -152,25 +172,19 @@ exports.pounceGig = async (req, res) => {
         
         await gig.save();
 
-        // Initialize Conversation
-        let conversation = await Conversation.findOne({ gig: gig._id });
-        if (!conversation) {
-            conversation = new Conversation({
-                gig: gig._id,
-                members: [gig.requester._id, req.user.id]
-            });
-        } else {
-            if (!conversation.members.includes(req.user.id)) {
-                conversation.members.push(req.user.id);
-            }
-        }
-        await conversation.save();
-
         res.json({ 
             msg: "Pounce successful!", 
             gig,
             requester: gig.requester,
             conversationId: conversation._id
+        });
+
+        // Broadcast to everyone that the gig status changed (e.g. OPEN -> IN_PROGRESS)
+        req.io.emit('gig_status_update', gig);
+
+        // Notify both parties about the new conversation for real-time sidebar updates
+        conversation.members.forEach(memberId => {
+            req.io.to(`user_${memberId.toString()}`).emit('new_conversation', conversation);
         });
 
     } catch (err) {
@@ -192,6 +206,9 @@ exports.completeGig = async (req, res) => {
 
         gig.status = 'COMPLETED';
         await gig.save();
+
+        // Broadcast to everyone that the gig is no longer available
+        req.io.emit('gig_status_update', gig);
 
         res.json({ msg: "Gig marked as COMPLETED! 🐾", gig });
     } catch (err) {

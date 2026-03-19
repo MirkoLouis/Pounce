@@ -16,6 +16,7 @@ export default defineConfig({
         target: 'http://0.0.0.0:5000',
         changeOrigin: true,
         secure: false,
+        ws: true, // Enable WebSocket support for Socket.io
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('🐾 Proxy Error:', err); 
@@ -27,10 +28,6 @@ export default defineConfig({
             console.log('🐾 Received Response:', proxyRes.statusCode, req.url);
           });
         },
-      },
-      '/socket.io': {
-        target: 'http://0.0.0.0:5000',
-        ws: true, // Enable WebSocket proxying
       },
     },
     hmr: {

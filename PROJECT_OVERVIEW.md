@@ -5,7 +5,7 @@
 graph TD
     UserA[Requester] -->|1. Post Gig| Modal[Request Modal]
     Modal -->|2. Data Save| Mongo[(MongoDB)]
-    Mongo -->|3. Notify| Redis[Redis Pub/Sub]
+    Mongo -->|3. Notify| IO[Socket.io Signaling]
     
     UserB[Pouncer 1] -->|4. Pounce| Whisper[WhisperSquad Handshake]
     UserC[Pouncer 2] -->|4. Pounce| Whisper
@@ -31,14 +31,15 @@ WhisperChat is more than just messaging; it's a secure handshake.
 
 ## 💾 Refined Database Strategy
 
-### MongoDB (Persistence)
-- **Users Collection:** `_id`, `name`, `msu_email`, `college`, `course`, `publicKey`, `auto_pounce_message`.
+### MongoDB (Persistence & State)
+- **Users Collection:** `_id`, `name`, `msu_email`, `college`, `course`, `publicKey`, `auto_pounce_message`, `isOnline`, `lastSeen`.
 - **Gigs Collection:** `_id`, `requester_id`, `pouncer_ids[]`, `title`, `description`, `targeted_expertises`, `reward`, `status`.
 - **Messages Collection:** `conversation_id`, `sender_id`, `encryptedPayload`, `timestamp`. Stores only encrypted hashes.
 
-### Redis (Speed & Real-time)
-- **Presence List:** Tracks online/offline status using a Redis Set (`online_users`). Updates are broadcasted globally via `user_status_change` events.
-- **Real-time Feed:** Supports immediate "Live Ticker" updates when new gigs are posted.
+### Real-time Signaling (Socket.io)
+- **Presence Tracking:** Tracks online/offline status by updating MongoDB's `isOnline` field. Multi-tab sessions are handled via in-memory socket counting.
+- **Direct Messaging:** Uses unique `user_${userId}` rooms to ensure messages reach recipients regardless of their current view.
+- **Live Feed:** Supports immediate "Live Ticker" updates when new gigs are posted via global broadcasts.
 
 ## 🎓 Infinite Scroll & Live Feed Logic
 The Dashboard uses a hybrid approach for efficiency:

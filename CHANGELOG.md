@@ -1,5 +1,33 @@
 # CHANGELOG.md
 
+## 2026-03-19 17:30
+### Version-0.3.0-Alpha+202603191730
+
+**FIXED:**
+- **Inactivity Logic (AFK):** Users now show as "Cat is Away" if they are connected but haven't interacted with the app for 5 minutes.
+- **Payload Limits:** Increased server JSON limit to 50MB to support high-resolution Base64 image uploads.
+- **Image Compatibility:** Migrated from temporary Blobs to permanent Base64 strings for gig images, fixing security errors in LibreWolf.
+- **Live Sync:** Added `gig_status_update` events to remove pounced or completed gigs from all users' carousels instantly.
+- **Reactive Sockets:** Implemented `SocketProvider` and `useSocket` hook to ensure real-time listeners attach correctly even during rapid page refreshes.
+- **Session Integrity:** Updated auth middleware to verify user existence in DB, ensuring 100% reliable logouts after database resets.
+
+**ADDED:**
+- **Activity Heartbeats:** Server now tracks `lastSeen` timestamps via API middleware and Socket.io events.
+- **Real-time Notifications:** Dashboard chat icon now shows a real-time notification dot when a new pounce occurs.
+- **Strict Validation:** `RequestGigModal` now enforces required fields (Title, Description, College, Course) and restricts reward inputs (numeric cash, 50-char custom).
+
+## 2026-03-19 15:00
+### Version-0.2.0-Alpha+202603191500
+
+**FIXED:**
+- **Chat Reliability:** Refactored messaging logic to save to MongoDB before emitting, ensuring history and real-time stay synchronized.
+- **Multi-tab Presence:** Implemented in-memory socket counting to prevent users from showing as "Offline" when closing only one of multiple open tabs.
+- **Background Notifications:** Users now receive messages via personal rooms (`user_${userId}`), ensuring updates arrive even when the specific chat view is not active.
+
+**ADDED:**
+- **Pure MongoDB Architecture:** Removed Redis dependency, consolidating all persistent and transient state (presence tracking) into MongoDB to simplify the stack and deployment.
+- **Persistent Presence State:** Added `isOnline` and `lastSeen` fields to the User model, making status available even after server restarts.
+
 ## 2026-03-15 19:55
 ### Version-0.1.0-Alpha+202603151955
 

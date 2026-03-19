@@ -1,56 +1,72 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, createContext, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import api from '../services/api';
 import * as crypto from '../services/crypto';
 
-// Global socket instance
+// Export for legacy compatibility (though useSocket is preferred)
 export let globalSocket = null;
 
-const GlobalSetup = () => {
+const SocketContext = createContext(null);
+export const useSocket = () => useContext(SocketContext);
+
+const GlobalSetup = ({ children }) => {
     const location = useLocation();
+    const [socket, setSocket] = useState(null);
     const isInitialized = useRef(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        if (!token || isInitialized.current) return;
+        if (!token) return;
 
         // 1. Initialize Global Socket
         if (!globalSocket) {
-            globalSocket = io('/', { 
+            const newSocket = io('/', { 
                 path: '/api/socket.io',
                 auth: { token }
             });
 
-            globalSocket.on('connect', () => console.log('🐾 Cat globally connected!'));
+            newSocket.on('connect', () => {
+                console.log('🐾 Cat globally connected!');
+            });
+
+            newSocket.on('force_logout', () => {
+                console.log('📢 System-wide logout triggered!');
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+            });
+
+            globalSocket = newSocket;
+            setSocket(newSocket);
+        } else if (!socket) {
+            setSocket(globalSocket);
         }
 
-        // 2. Initialize Keys & Update Public Key (so pouncers can whisper immediately)
+        // 2. Initialize Keys & Update Public Key
         const setupKeys = async () => {
+            if (isInitialized.current) return;
             try {
                 const myKeyPair = await crypto.getOrGenerateKeyPair();
                 const pubKeyBase64 = await crypto.exportPublicKey(myKeyPair.publicKey);
                 
-                // Fetch current user and update profile if key is missing/changed
                 const userRes = await api.get('/auth/me');
                 if (userRes.data.publicKey !== pubKeyBase64) {
                     await api.put('/auth/profile', { publicKey: pubKeyBase64 });
                 }
+                isInitialized.current = true;
             } catch (err) {
                 console.error("Global Key Setup Error:", err);
             }
         };
         setupKeys();
 
-        isInitialized.current = true;
+    }, [location.pathname, socket]);
 
-        return () => {
-            // We don't want to disconnect the global socket on every re-render,
-            // but we might want to clean up if the user logs out.
-        };
-    }, [location.pathname]); // Re-check if path changes (e.g., after login)
-
-    return null;
+    return (
+        <SocketContext.Provider value={socket}>
+            {children}
+        </SocketContext.Provider>
+    );
 };
 
 export default GlobalSetup;

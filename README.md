@@ -14,9 +14,8 @@ In the MSUIIT ecosystem, every "Cat" has a specialty. **Pounce** allows students
 - **Job Finalization:** Requesters can mark jobs as "Done/Paid" to trigger status updates and payment confirmations.
 
 ## 🛠 Tech Stack
-- **Database:** MongoDB (Profiles, Gigs, and Encrypted Message Hashes).
-- **Cache/Real-time:** Redis (Global Presence Tracking and Real-time Signaling).
-- **Communication:** WebSockets (Socket.io) with JWT Authentication.
+- **Database:** MongoDB (Profiles, Presence State, Gigs, and Encrypted Message Hashes).
+- **Communication:** WebSockets (Socket.io) with JWT Authentication and real-time signaling.
 - **Security:** End-to-End Encryption (E2EE) via Web Crypto API (ECDH P-256 + AES-GCM 256) with persistent keys in **IndexedDB**.
 
 ## 🎓 MSUIIT Colleges Covered

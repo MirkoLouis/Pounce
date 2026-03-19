@@ -14,9 +14,11 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
         setLoading(true);
         try {
             const res = await api.post(`/gigs/pounce/${gig._id}`);
-            alert("Pounce successful! Joining the squad... 🐾");
+            // If the message contains "already", we don't want to trigger the auto-message
+            const isFirstPounce = res.data.msg.toLowerCase().includes("pounce successful");
+            
             onClose();
-            navigate(`/chat?id=${res.data.conversationId}&pounce=true`);
+            navigate(`/chat?id=${res.data.conversationId}${isFirstPounce ? '&pounce=true' : ''}`);
         } catch (err) {
             alert(err.response?.data?.msg || "Error during pounce");
         } finally {

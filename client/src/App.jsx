@@ -9,14 +9,15 @@ import GlobalSetup from './components/GlobalSetup';
 const App = () => {
   return (
     <Router>
-      <GlobalSetup />
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/chat" element={<ChatPage />} />
-        <Route path="*" element={<Navigate to="/login" />} />
-      </Routes>
+      <GlobalSetup>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="*" element={<Navigate to="/login" />} />
+        </Routes>
+      </GlobalSetup>
     </Router>
   );
 };

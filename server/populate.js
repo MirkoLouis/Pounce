@@ -6,6 +6,7 @@ const { faker } = require('@faker-js/faker');
 const User = require('./models/User');
 const Gig = require('./models/Gig');
 const fs = require('fs');
+const http = require('http');
 
 const collegeData = JSON.parse(fs.readFileSync(path.join(__dirname, '../COLLEGES.json'), 'utf-8'));
 const allCourses = collegeData.colleges.flatMap(c => [
@@ -15,6 +16,18 @@ const allCourses = collegeData.colleges.flatMap(c => [
 
 async function seed(numUsers = 10, numGigs = 30) {
     try {
+        // Attempt to force logout all connected users before wiping the DB
+        try {
+            const serverPort = process.env.PORT || 5000;
+            http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
+                console.log('📢 Sent global logout signal to server.');
+            }).on('error', (e) => {
+                // Server might be down, ignore.
+            });
+            // Slightly longer delay for broadcast to reach everyone
+            await new Promise(r => setTimeout(r, 1500));
+        } catch (e) { /* ignore */ }
+
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('🐾 Alab is seeding the database with realistic Cats...');
 
