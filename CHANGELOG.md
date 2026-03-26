@@ -1,5 +1,17 @@
 # CHANGELOG.md
 
+## 2026-03-25 17:00
+### Version-0.5.1-Alpha+202603251700
+
+**FIXED:**
+- **Reward Consistency:** Resolved a logic error in the simulator and seeding scripts where `CUSTOM` reward types were assigned monetary values; rewards now strictly match their designated type.
+- **Market Balancing:** Adjusted swarm probabilities to increase the gig creation rate, preventing the "market depletion" scenario where bots pounced faster than new needs were posted.
+- **Ticker Overflow:** Restricted the Live Ticker to exactly the 5 most recent gigs to prevent horizontal scrolling and keep the most urgent needs front-and-center.
+
+**ADDED:**
+- **Static Live Ticker:** Removed navigation arrows and disabled scrolling for the "Live Ticker" carousel to maintain a clean, auto-updating headline view.
+- **Simulator Independence:** Refined the bot engine to support truly asynchronous, independent routines where each bot manages its own state and randomized action clock.
+
 ## 2026-03-25 16:30
 ### Version-0.5.0-Alpha+202603251630
 

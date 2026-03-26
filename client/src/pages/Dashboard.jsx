@@ -44,7 +44,10 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
             if (shouldAdd) {
                 setGigs(prev => {
                     if (prev.find(g => g._id === newGig._id)) return prev;
-                    return [newGig, ...prev];
+                    const newList = [newGig, ...prev];
+                    // If it's the live ticker, keep only top 5 to keep it fresh
+                    if (category === 'all') return newList.slice(0, 5);
+                    return newList;
                 });
             }
         };
@@ -106,23 +109,27 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
             </div>
             
             <div className="relative">
-                <button 
-                    onClick={() => scroll('left')}
-                    className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-white rounded-full shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
-                >
-                    <ChevronLeft className="w-6 h-6 text-slate-600" />
-                </button>
-                <button 
-                    onClick={() => scroll('right')}
-                    className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-white rounded-full shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
-                >
-                    <ChevronRight className="w-6 h-6 text-slate-600" />
-                </button>
+                {category !== 'all' && (
+                    <>
+                        <button 
+                            onClick={() => scroll('left')}
+                            className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-white rounded-full shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
+                        >
+                            <ChevronLeft className="w-6 h-6 text-slate-600" />
+                        </button>
+                        <button 
+                            onClick={() => scroll('right')}
+                            className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-3 bg-white rounded-full shadow-xl border border-slate-100 opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95"
+                        >
+                            <ChevronRight className="w-6 h-6 text-slate-600" />
+                        </button>
+                    </>
+                )}
 
                 <div 
                     ref={scrollRef}
-                    onScroll={handleScroll}
-                    className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-6 py-2"
+                    onScroll={category === 'all' ? undefined : handleScroll}
+                    className={`flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-6 py-2 ${category === 'all' ? 'overflow-hidden' : ''}`}
                 >
                     {gigs.map((gig) => (
                         <motion.div 
@@ -450,7 +457,7 @@ const Dashboard = () => {
                                 <div className="flex flex-col items-center justify-center py-20 text-slate-300">
                                     <Cat className="w-20 h-20 opacity-10 mb-6" />
                                     <h3 className="text-xl font-black text-slate-900 italic uppercase">No gigs found 😿</h3>
-                                    <p className="font-bold text-slate-400 text-sm mt-2">Try different whiskers...</p>
+                                    <p className="font-bold text-slate-400 text-sm mt-2">Try searching for a different gig...</p>
                                 </div>
                             )}
                         </motion.div>

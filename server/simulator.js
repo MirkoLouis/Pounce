@@ -103,20 +103,26 @@ async function startBot(user) {
             
             // PHASE 2: IDLE ACTIONS (Post or Pounce)
             else {
-                // 10% chance to post a new gig
-                if (rand < 0.10) {
+                // 25% chance to post a new gig (Increased from 10%)
+                if (rand < 0.25) {
                     const title = faker.hacker.phrase();
+                    const isPHP = Math.random() > 0.3;
+                    const reward = {
+                        type: isPHP ? 'PHP' : 'CUSTOM',
+                        value: isPHP ? faker.commerce.price({ min: 100, max: 1000 }) : "Coffee treat"
+                    };
+
                     await axios.post(`${SERVER_URL}/api/gigs`, {
                         title,
                         description: faker.lorem.paragraph().substring(0, 500),
-                        reward: { type: Math.random() > 0.3 ? 'PHP' : 'CUSTOM', value: Math.random() > 0.3 ? faker.commerce.price({ min: 100, max: 1000 }) : "Coffee treat" },
+                        reward,
                         targeted_expertises: [user.course],
                         images: []
                     }, { headers: { 'x-auth-token': token } });
                     console.log(`${botId} 📢 NEW GIG: "${title}"`);
                 } 
-                // 20% chance to pounce on an open gig
-                else if (rand < 0.30) {
+                // 15% chance to pounce on an open gig (Decreased from 20%)
+                else if (rand < 0.40) {
                     const randomGigs = await Gig.aggregate([
                         { $match: { status: 'OPEN', requester: { $ne: user._id } } },
                         { $sample: { size: 1 } }

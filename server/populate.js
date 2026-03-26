@@ -104,16 +104,18 @@ async function seed(numUsers = 10, numGigs = 30) {
             const requester = faker.helpers.arrayElement(createdUsers);
             const isCustomReward = faker.datatype.boolean(0.3);
 
+            const reward = {
+                type: isCustomReward ? 'CUSTOM' : 'PHP',
+                value: isCustomReward ? "I'll treat you to lunch at the canteen!" : faker.commerce.price({ min: 100, max: 2000 })
+            };
+
             const gig = new Gig({
                 requester: requester._id,
                 title: faker.hacker.phrase(),
                 description: faker.lorem.paragraph().substring(0, 500),
                 images: Array.from({ length: faker.number.int({ min: 0, max: 3 }) }, () => faker.image.url()),
                 targeted_expertises: faker.helpers.arrayElements(allCourses, { min: 1, max: 3 }),
-                reward: {
-                    type: isCustomReward ? 'CUSTOM' : 'PHP',
-                    value: isCustomReward ? "I'll treat you to lunch at the canteen!" : faker.commerce.price({ min: 100, max: 2000 })
-                },
+                reward,
                 status: 'OPEN',
                 createdAt: faker.date.recent({ days: 7 })
             });
