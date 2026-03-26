@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Lock, Mail, GraduationCap, MessageSquare, LogOut, Check, ArrowRight } from 'lucide-react';
+import { X, User, Lock, Mail, GraduationCap, MessageSquare, LogOut, Check, ArrowRight, Download, Loader2 } from 'lucide-react';
 import collegeData from '../data/colleges.json';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false });
+    const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false, backup: false });
     
     // Local states for each section
     const [nameParts, setNameParts] = useState({ first: '', middle: '', last: '' });
@@ -37,6 +37,27 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const handleLogout = () => {
         localStorage.removeItem('token');
         navigate('/login');
+    };
+
+    const handleBackup = async () => {
+        setLoading(prev => ({ ...prev, backup: true }));
+        try {
+            const res = await api.get('/auth/backup');
+            const dataStr = JSON.stringify(res.data, null, 4);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `pounce_backup_${user.name.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        } catch (err) {
+            alert("Backup failed. The pride is busy!");
+            console.error(err);
+        } finally {
+            setLoading(prev => ({ ...prev, backup: false }));
+        }
     };
 
     const updateSection = async (section, data) => {
@@ -245,13 +266,24 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
 
                 {/* Footer */}
                 <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-                    <button 
-                        type="button"
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-xl transition-all"
-                    >
-                        <LogOut className="w-4 h-4" /> Log Out 🐾
-                    </button>
+                    <div className="flex gap-4">
+                        <button 
+                            type="button"
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-xl transition-all"
+                        >
+                            <LogOut className="w-4 h-4" /> Log Out 🐾
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={handleBackup}
+                            disabled={loading.backup}
+                            className="flex items-center gap-2 text-alab-orange font-black text-[10px] uppercase tracking-widest hover:bg-orange-50 px-4 py-2 rounded-xl transition-all disabled:opacity-50"
+                        >
+                            {loading.backup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                            Backup Data
+                        </button>
+                    </div>
                     <p className="text-[10px] font-black text-slate-300 uppercase italic">Pounce v1.0 • MSUIIT</p>
                 </div>
             </motion.div>

@@ -1,5 +1,33 @@
 # CHANGELOG.md
 
+## 2026-03-25 16:30
+### Version-0.5.0-Alpha+202603251630
+
+**FIXED:**
+- **Race Conditions:** Strictly enforced single-pouncer logic in the backend to prevent multiple bots/users from colliding on the same gig simultaneously.
+- **Visual Clipping:** Updated gig titles in the details modal to use `leading-tight`, preventing italicized font overhangs from being visually cut off.
+- **Sync Issues:** Fixed a bug where UI carousels and search results didn't immediately remove gigs that were no longer "OPEN."
+
+**ADDED:**
+- **Swarm Engine V5:** Implemented a high-concurrency bot simulator where 50+ bots operate as autonomous, independent routines with their own memory and randomized action loops.
+- **E2EE Bot Handshakes:** Bots now participate in the WhisperSquad protocol, generating real P-256 keys and performing ECDH handshakes to send fully encrypted whispers.
+- **Unread Notification System:** Added a database-backed "unread" indicator that tracks `lastRead` timestamps per member, reflecting real-time activity on the Dashboard and Chat sidebar.
+- **Real-time Stat Streams:** The "Pride Activity" widget now utilizes WebSocket listeners to update marketplace statistics instantly as gigs are posted, pounced, or finished.
+- **Bot Documentation:** Created `BOT_SIMULATOR.md` to detail the architecture and behavior of the new simulation suite.
+
+## 2026-03-25 15:00
+### Version-0.4.0-Alpha+202603251500
+
+**FIXED:**
+- **Search UX:** Dashboard now conditionally renders search results, replacing carousels for a cleaner view during search.
+- **Delete Logic:** Restricted gig deletion to the original requester and only for "OPEN" gigs, ensuring data integrity.
+
+**ADDED:**
+- **Manage My Gigs:** New "My Gigs" tab/page allowing users to view and delete their own submitted requests (CRUD completion).
+- **Search Functionality:** Integrated a backend-powered search bar on the Dashboard for easy data retrieval.
+- **Data Visualization:** Added a "Pride Activity" widget on the Dashboard showing real-time distribution of gig statuses.
+- **Backup Feature:** Implemented a JSON data export feature in the Profile Modal for user data backup.
+
 ## 2026-03-19 17:30
 ### Version-0.3.0-Alpha+202603191730
 

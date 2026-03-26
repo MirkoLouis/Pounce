@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import ChatPage from './pages/ChatPage';
+import MyGigs from './pages/MyGigs';
 import GlobalSetup from './components/GlobalSetup';
 
 const App = () => {
@@ -15,6 +16,7 @@ const App = () => {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/my-gigs" element={<MyGigs />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </GlobalSetup>

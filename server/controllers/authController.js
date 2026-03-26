@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const Gig = require('../models/Gig');
+const Conversation = require('../models/Conversation');
+const Message = require('../models/Message');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -86,5 +89,36 @@ exports.updateProfile = async (req, res) => {
     } catch (err) {
         console.error(err.message);
         res.status(500).send("Server Error");
+    }
+};
+
+exports.backupData = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Fetch all data related to the user
+        const userData = await User.findById(userId).select('-password');
+        const submittedGigs = await Gig.find({ requester: userId });
+        const pouncedGigs = await Gig.find({ pouncers: userId });
+        
+        // Find conversations the user is a member of
+        const conversations = await Conversation.find({ members: userId }).populate('gig', 'title');
+        
+        // Find messages sent by the user
+        const messages = await Message.find({ sender: userId });
+
+        const backup = {
+            timestamp: new Date().toISOString(),
+            user: userData,
+            submittedGigs,
+            pouncedGigs,
+            conversations,
+            messages
+        };
+
+        res.json(backup);
+    } catch (err) {
+        console.error("❌ Backup Error:", err);
+        res.status(500).json({ msg: "Error generating backup" });
     }
 };

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, GraduationCap, Briefcase, MapPin, Zap, MessageSquare, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { X, User, GraduationCap, Briefcase, MapPin, Zap, MessageSquare, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const GigDetailsModal = ({ gig, isOpen, onClose }) => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
+    const [imageLoading, setImageLoading] = useState(gig?.images?.length > 0);
 
     if (!isOpen || !gig) return null;
 
@@ -45,11 +46,19 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                 {/* Image Section */}
                 <div className="md:w-1/2 bg-white relative overflow-hidden group">
                     {gig.images && gig.images.length > 0 ? (
-                        <img 
-                            src={gig.images[0]} 
-                            alt={gig.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                        />
+                        <>
+                            {imageLoading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                                    <Loader2 className="w-10 h-10 text-alab-orange animate-spin opacity-20" />
+                                </div>
+                            )}
+                            <img 
+                                src={gig.images[0]} 
+                                alt={gig.title}
+                                onLoad={() => setImageLoading(false)}
+                                className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-700 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+                            />
+                        </>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-4">
                             <Briefcase className="w-20 h-20 opacity-20" />
@@ -75,7 +84,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                     {gig.reward?.type} REWARD
                                 </span>
                             </div>
-                            <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter leading-none mb-3 uppercase">
+                            <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter leading-tight mb-3 uppercase">
                                 {gig.title}
                             </h2>
                             <div className="flex items-center gap-4">
@@ -84,8 +93,8 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                         <User className="w-4 h-4 text-slate-400" />
                                     </div>
                                     <div>
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Requester</p>
-                                        <p className="text-xs font-black text-slate-900 italic uppercase">{gig.requester?.name || "The Cat"}</p>
+                                        <p className="text-[16px] font-black text-slate-400 uppercase tracking-widest leading-none">Requester</p>
+                                        <p className="text-md font-black text-slate-900 uppercase">{gig.requester?.name || "The Cat"}</p>
                                     </div>
                                 </div>
                             </div>
@@ -93,8 +102,8 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
 
                         {/* Description */}
                         <div className="mb-4 p-4 bg-white rounded-[1.5rem] border border-slate-100">
-                            <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Zap className="w-3 h-3 text-alab-orange" /> Mission Details
+                            <h3 className="text-[16px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Zap className="w-3 h-3 text-alab-orange" /> Gig Details
                             </h3>
                             <p className="text-slate-600 font-medium leading-relaxed text-xs">
                                 {gig.description}
@@ -107,12 +116,12 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             <div className="p-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm">
                                 <div className="flex items-center gap-2 mb-2">
                                     <GraduationCap className="w-4 h-4 text-alab-orange" />
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Targeted Expertise</p>
+                                    <p className="text-[16px] font-black text-slate-400 uppercase tracking-widest">Targeted Expertise</p>
                                 </div>
                                 <div className="flex flex-col gap-1.5">
                                     {gig.targeted_expertises && gig.targeted_expertises.length > 0 ? (
                                         gig.targeted_expertises.map((expertise, index) => (
-                                            <p key={index} className="text-[11px] font-black text-slate-900 uppercase italic border-l-2 border-orange-100 pl-3 py-0.5 leading-tight">
+                                            <p key={index} className="text-[12px] font-black text-slate-900 uppercase italic border-l-2 border-orange-100 pl-3 py-0.5 leading-tight">
                                                 {expertise}
                                             </p>
                                         ))
@@ -126,7 +135,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             <div className="p-4 bg-alab-orange text-white rounded-[1.5rem] shadow-xl shadow-orange-100">
                                 <div className="flex items-center gap-2 mb-1.5">
                                     <Zap className="w-4 h-4 text-orange-100" />
-                                    <p className="text-[9px] font-black text-orange-100 uppercase tracking-widest">Payout</p>
+                                    <p className="text-[12px] font-black text-orange-100 uppercase tracking-widest">Payout</p>
                                 </div>
                                 <p className="text-lg font-black italic uppercase leading-tight">
                                     {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
@@ -139,11 +148,11 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             <button 
                                 onClick={handlePounce}
                                 disabled={loading}
-                                className="flex-grow py-4 bg-slate-900 hover:bg-black text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-2xl transition-all active:scale-95 disabled:opacity-50 group flex items-center justify-center gap-3"
+                                className="flex-grow py-4 bg-slate-900 hover:bg-black text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 group flex items-center justify-center gap-3"
                             >
                                 {loading ? "Pouncing..." : (
                                     <>
-                                        Ready to Pounce? 🐾
+                                        Pounce? 🐾
                                         <CheckCircle2 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                     </>
                                 )}

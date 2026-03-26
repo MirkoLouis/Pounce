@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare, Loader2 } from 'lucide-react';
+import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare, Briefcase, Search, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import RequestGigModal from '../components/RequestGigModal';
 import GigDetailsModal from '../components/GigDetailsModal';
 import ProfileModal from '../components/ProfileModal';
 import { useSocket } from '../components/GlobalSetup';
 
-const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user }) => {
+const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user, onGigStatusUpdate }) => {
     const scrollRef = useRef(null);
     const [gigs, setGigs] = useState(initialGigs);
     const [page, setPage] = useState(1);
@@ -19,6 +19,17 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
     useEffect(() => {
         setGigs(initialGigs);
     }, [initialGigs]);
+
+    // Internal status sync for this specific carousel instance
+    useEffect(() => {
+        if (!onGigStatusUpdate) return;
+        onGigStatusUpdate((updatedGig) => {
+            setGigs(prev => {
+                if (updatedGig.status !== 'OPEN') return prev.filter(g => g._id !== updatedGig._id);
+                return prev.map(g => g._id === updatedGig._id ? updatedGig : g);
+            });
+        });
+    }, [onGigStatusUpdate]);
 
     // Handle Real-time updates for THIS carousel
     useEffect(() => {
@@ -38,23 +49,10 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
             }
         };
 
-        const handleGigStatusUpdate = (updatedGig) => {
-            setGigs(prev => {
-                // If it's no longer OPEN, remove it from all carousels (since they usually show OPEN gigs)
-                if (updatedGig.status !== 'OPEN') {
-                    return prev.filter(g => g._id !== updatedGig._id);
-                }
-                // If it's still open but details changed, update it
-                return prev.map(g => g._id === updatedGig._id ? updatedGig : g);
-            });
-        };
-
         socket.on('new_gig', handleNewGig);
-        socket.on('gig_status_update', handleGigStatusUpdate);
 
         return () => {
             socket.off('new_gig', handleNewGig);
-            socket.off('gig_status_update', handleGigStatusUpdate);
         };
     }, [socket, user, category]);
 
@@ -161,7 +159,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                     )}
                     {gigs.length === 0 && !loading && (
                         <div className="min-w-[300px] h-[200px] flex items-center justify-center text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-3xl italic">
-                            No gigs here yet 😿
+                            No recommended gigs yet 😿
                         </div>
                     )}
                 </div>
@@ -173,13 +171,41 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
 const Dashboard = () => {
     const navigate = useNavigate();
     const [feed, setFeed] = useState({ all: [], recommended: [], misc: [], random: [] });
-    const [conversationsCount, setConversationsCount] = useState(0);
+    const [stats, setStats] = useState({ OPEN: 0, IN_PROGRESS: 0, COMPLETED: 0 });
+    const [hasUnread, setHasUnread] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [selectedGig, setSelectedGig] = useState(null);
     const socket = useSocket();
+
+    // Search State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+
+    const handleSearch = async (e) => {
+        const val = e.target.value;
+        setSearchTerm(val);
+        
+        if (val.trim().length > 2) {
+            setSearchLoading(true);
+            setIsSearching(true);
+            try {
+                const res = await api.get(`/gigs/feed?category=all&search=${val}&limit=20`);
+                setSearchResults(res.data);
+            } catch (err) {
+                console.error("Search Error:", err);
+            } finally {
+                setSearchLoading(false);
+            }
+        } else {
+            setIsSearching(false);
+            setSearchResults([]);
+        }
+    };
 
     const fetchDashboard = async () => {
         try {
@@ -189,8 +215,12 @@ const Dashboard = () => {
             const res = await api.get('/gigs/dashboard');
             setFeed(res.data);
             
-            const chatRes = await api.get('/chat/conversations');
-            setConversationsCount(chatRes.data.length);
+            const [chatRes, statsRes] = await Promise.all([
+                api.get('/chat/conversations'),
+                api.get('/gigs/stats')
+            ]);
+            setHasUnread(chatRes.data.some(c => c.hasUnread));
+            setStats(statsRes.data);
         } catch (err) {
             const res = await api.get('/gigs/public');
             setFeed({ all: res.data, recommended: [], misc: [], random: res.data });
@@ -203,20 +233,48 @@ const Dashboard = () => {
         fetchDashboard();
     }, []);
 
-    // Listen for new conversations to update the notification dot
+    // Listen for new conversations and messages to update the notification dot
     useEffect(() => {
         if (!socket) return;
 
-        const handleNewConversation = () => {
-            setConversationsCount(prev => prev + 1);
+        const handleNewUnread = () => {
+            setHasUnread(true);
         };
 
-        socket.on('new_conversation', handleNewConversation);
-        return () => socket.off('new_conversation', handleNewConversation);
+        const refreshStats = async () => {
+            try {
+                const statsRes = await api.get('/gigs/stats');
+                setStats(statsRes.data);
+            } catch (err) {
+                console.error("Stats refresh error:", err);
+            }
+        };
+
+        const handleGigStatus = (updatedGig) => {
+            // Update search results if they are showing
+            setSearchResults(prev => prev.filter(g => g._id !== updatedGig._id || updatedGig.status === 'OPEN'));
+            refreshStats();
+        };
+
+        socket.on('new_conversation', handleNewUnread);
+        socket.on('receive_message', handleNewUnread);
+        
+        // Listen for gig changes to update the visualization widget
+        socket.on('new_gig', refreshStats);
+        socket.on('gig_status_update', handleGigStatus);
+        socket.on('gig_deleted', refreshStats);
+        
+        return () => {
+            socket.off('new_conversation', handleNewUnread);
+            socket.off('receive_message', handleNewUnread);
+            socket.off('new_gig', refreshStats);
+            socket.off('gig_status_update', handleGigStatus);
+            socket.off('gig_deleted', refreshStats);
+        };
     }, [socket]);
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
+        <div className="min-h-screen bg-slate-50">
             <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
@@ -229,9 +287,16 @@ const Dashboard = () => {
                             className="p-3 text-slate-500 hover:bg-slate-100 rounded-2xl transition-all relative"
                         >
                             <MessageSquare className="w-6 h-6" />
-                            {conversationsCount > 0 && (
+                            {hasUnread && (
                                 <div className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-alab-orange rounded-full border-2 border-white shadow-sm" />
                             )}
+                        </button>
+
+                        <button 
+                            onClick={() => navigate('/my-gigs')}
+                            className="p-3 text-slate-500 hover:bg-slate-100 rounded-2xl transition-all"
+                        >
+                            <Briefcase className="w-6 h-6" />
                         </button>
 
                         <div 
@@ -245,17 +310,165 @@ const Dashboard = () => {
             </header>
 
             <main className="max-w-7xl mx-auto pt-12 text-slate-900">
-                <div className="px-6 mb-12 flex justify-between items-end">
+                <div className="px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                     <div>
                         <h1 className="text-5xl font-black text-slate-900 italic tracking-tight mb-2">Hello, {user?.name?.split(' ')[0] || 'Cat'}! 🐾</h1>
                         <p className="text-slate-500 text-lg font-bold uppercase tracking-tight opacity-60">{user?.college || 'MSUIIT Pride'}</p>
                     </div>
+
+                    <div className="relative w-full md:w-96 group">
+                        <Search className={`absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${searchTerm ? 'text-alab-orange' : 'text-slate-400'}`} />
+                        <input 
+                            value={searchTerm}
+                            onChange={handleSearch}
+                            placeholder="Search for a gig..."
+                            className="w-full pl-14 pr-12 py-5 bg-white rounded-[2rem] border border-slate-100 shadow-sm focus:ring-4 focus:ring-orange-100 outline-none transition-all font-bold text-slate-700 placeholder:text-slate-300 italic"
+                        />
+                        {searchTerm && (
+                            <button 
+                                onClick={() => { setSearchTerm(''); setIsSearching(false); }}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-50 rounded-full transition-colors"
+                            >
+                                <X className="w-4 h-4 text-slate-400" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <GigCarousel title="Recommended" category="recommended" icon={Sparkles} initialGigs={feed.recommended} onGigClick={setSelectedGig} user={user} />
-                <GigCarousel title="Live Ticker" category="all" icon={Zap} initialGigs={feed.all} onGigClick={setSelectedGig} user={user} />
-                <GigCarousel title="Misc Rewards" category="misc" icon={Box} initialGigs={feed.misc} onGigClick={setSelectedGig} user={user} />
-                <GigCarousel title="Random Jobs" category="random" icon={Compass} initialGigs={feed.random} onGigClick={setSelectedGig} user={user} />
+                {/* Data Visualization Widget */}
+                <div className="px-6 mb-12">
+                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                            <div className="max-w-xs">
+                                <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-2">Pride Activity</h3>
+                                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest leading-relaxed">
+                                    Real-time overview of gig distribution across the university pride.
+                                </p>
+                            </div>
+                            
+                            <div className="flex-grow w-full flex flex-col gap-6">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-black text-slate-900">{stats.OPEN + stats.IN_PROGRESS + stats.COMPLETED}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Gigs</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-black text-green-500">{stats.OPEN}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-black text-alab-orange">{stats.IN_PROGRESS}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pounced</span>
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-2xl font-black text-blue-500">{stats.COMPLETED}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Completed</span>
+                                    </div>
+                                </div>
+
+                                <div className="h-4 w-full bg-slate-50 rounded-full flex overflow-hidden">
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${(stats.OPEN / (stats.OPEN + stats.IN_PROGRESS + stats.COMPLETED || 1)) * 100}%` }}
+                                        className="h-full bg-green-400"
+                                        title={`Open: ${stats.OPEN}`}
+                                    />
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${(stats.IN_PROGRESS / (stats.OPEN + stats.IN_PROGRESS + stats.COMPLETED || 1)) * 100}%` }}
+                                        className="h-full bg-alab-orange"
+                                        title={`In Progress: ${stats.IN_PROGRESS}`}
+                                    />
+                                    <motion.div 
+                                        initial={{ width: 0 }}
+                                        animate={{ width: `${(stats.COMPLETED / (stats.OPEN + stats.IN_PROGRESS + stats.COMPLETED || 1)) * 100}%` }}
+                                        className="h-full bg-blue-400"
+                                        title={`Completed: ${stats.COMPLETED}`}
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-400" /> Open</div>
+                                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-alab-orange" /> Pounced</div>
+                                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400" /> Finished</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+                    {isSearching ? (
+                        <motion.div 
+                            key="search-results"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="px-6 min-h-[400px]"
+                        >
+                            <div className="flex items-center gap-2 mb-8 text-alab-orange">
+                                <Sparkles className="w-6 h-6" />
+                                <h2 className="text-2xl font-black text-slate-800 italic uppercase tracking-tight">Search Results for "{searchTerm}"</h2>
+                            </div>
+
+                            {searchLoading ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                    <Loader2 className="w-12 h-12 text-alab-orange animate-spin" />
+                                    <p className="font-black text-slate-300 uppercase italic tracking-widest text-xs">Sniffing out matches...</p>
+                                </div>
+                            ) : searchResults.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                    {searchResults.map((gig) => (
+                                        <motion.div 
+                                            key={gig._id}
+                                            onClick={() => setSelectedGig(gig)}
+                                            whileHover={{ y: -8 }}
+                                            className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 flex flex-col justify-between cursor-pointer group/card hover:shadow-xl hover:shadow-orange-100/50 transition-all aspect-square"
+                                        >
+                                            <div>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <span className="text-[10px] font-black text-alab-orange uppercase bg-orange-50 px-3 py-1 rounded-full">
+                                                        {gig.reward?.type}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-xl font-black text-slate-900 line-clamp-2 mb-3 leading-tight group-hover/card:text-alab-orange transition-colors italic">{gig.title}</h3>
+                                                <p className="text-sm text-slate-500 line-clamp-3 leading-relaxed font-medium">{gig.description}</p>
+                                            </div>
+                                            <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-slate-50">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-lg font-black text-slate-900">
+                                                        {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 group-hover/card:text-alab-orange transition-colors uppercase tracking-widest">
+                                                        Pounce!
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-20 text-slate-300">
+                                    <Cat className="w-20 h-20 opacity-10 mb-6" />
+                                    <h3 className="text-xl font-black text-slate-900 italic uppercase">No gigs found 😿</h3>
+                                    <p className="font-bold text-slate-400 text-sm mt-2">Try different whiskers...</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    ) : (
+                        <motion.div 
+                            key="dashboard-feed"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                        >
+                            <GigCarousel title="Recommended" category="recommended" icon={Sparkles} initialGigs={feed.recommended} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+                            <GigCarousel title="Live Ticker" category="all" icon={Zap} initialGigs={feed.all} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+                            <GigCarousel title="Misc Rewards" category="misc" icon={Box} initialGigs={feed.misc} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+                            <GigCarousel title="Random Jobs" category="random" icon={Compass} initialGigs={feed.random} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </main>
 
             <button 

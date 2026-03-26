@@ -79,6 +79,14 @@ const ChatPage = () => {
             setSharedKey(null);
             setGigStatus(selectedChat.gig?.status || 'IN_PROGRESS');
 
+            // Mark as read in backend
+            api.post(`/chat/read/${selectedChat._id}`).catch(console.error);
+            
+            // Mark as read locally to clear indicator
+            setConversations(prev => prev.map(c => 
+                c._id === selectedChat._id ? { ...c, hasUnread: false } : c
+            ));
+
             const otherCat = selectedChat.members.find(m => m._id !== currentUser._id);
             
             if (otherCat) {
@@ -146,6 +154,11 @@ const ChatPage = () => {
                 } catch (err) {
                     console.error("Decryption error:", err);
                 }
+            } else {
+                // Not in current chat, mark as unread in sidebar
+                setConversations(prev => prev.map(c => 
+                    c._id === data.chatId ? { ...c, hasUnread: true } : c
+                ));
             }
         };
 
@@ -170,7 +183,7 @@ const ChatPage = () => {
         const handleNewConversation = (newConv) => {
             setConversations(prev => {
                 if (prev.find(c => c._id === newConv._id)) return prev;
-                return [newConv, ...prev];
+                return [{ ...newConv, hasUnread: true }, ...prev];
             });
         };
 
@@ -321,6 +334,9 @@ const ChatPage = () => {
                                 <div className="min-w-0 flex-grow">
                                     <div className="flex justify-between items-start mb-0.5">
                                         <h4 className="font-black text-slate-900 truncate text-sm uppercase italic tracking-tight">{chat.gig?.title}</h4>
+                                        {chat.hasUnread && (
+                                            <div className="w-2.5 h-2.5 bg-alab-orange rounded-full mt-1 flex-shrink-0" />
+                                        )}
                                     </div>
                                     <p className="text-[11px] font-bold text-slate-400 truncate uppercase">
                                         {chat.members.find(m => m._id !== currentUser?._id)?.name || "Squad Chat"}

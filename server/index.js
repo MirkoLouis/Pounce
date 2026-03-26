@@ -69,17 +69,22 @@ app.post('/api/auth/register', authController.register);
 app.post('/api/auth/login', authController.login);
 app.get('/api/auth/me', auth, authController.me);
 app.put('/api/auth/profile', auth, authController.updateProfile);
+app.get('/api/auth/backup', auth, authController.backupData);
 
 // Gig Routes
 app.get('/api/gigs/public', gigController.getPublicGigs); 
 app.post('/api/gigs', auth, gigController.createGig);
 app.get('/api/gigs/dashboard', auth, gigController.getDashboardFeed);
 app.get('/api/gigs/feed', auth, gigController.getPaginatedGigs);
+app.get('/api/gigs/my', auth, gigController.getMyGigs);
+app.get('/api/gigs/stats', auth, gigController.getGigStats);
 app.post('/api/gigs/pounce/:id', auth, gigController.pounceGig);
 app.post('/api/gigs/complete/:id', auth, gigController.completeGig);
+app.delete('/api/gigs/:id', auth, gigController.deleteGig);
 
 // Chat Routes
 app.get('/api/chat/conversations', auth, chatController.getConversations);
+app.post('/api/chat/read/:id', auth, chatController.markAsRead);
 app.get('/api/chat/messages/:id', auth, chatController.getMessages);
 
 // Socket.io Middleware for Authentication
@@ -142,7 +147,15 @@ io.on('connection', async (socket) => {
                 timestamp: data.timestamp || new Date()
             });
             await newMessage.save();
-            await Conversation.findByIdAndUpdate(data.chatId, { lastMessageAt: new Date() });
+            
+            // Update conversation: new last message time AND sender has read it
+            const updateData = { lastMessageAt: new Date() };
+            const conversation = await Conversation.findById(data.chatId);
+            if (conversation) {
+                if (!conversation.lastRead) conversation.lastRead = new Map();
+                conversation.lastRead.set(userId, new Date());
+                await conversation.save();
+            }
             
             // Also update sender's activity for AFK/Away calculation
             await User.findByIdAndUpdate(userId, { lastSeen: new Date() });

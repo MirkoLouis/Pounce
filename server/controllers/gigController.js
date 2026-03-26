@@ -46,7 +46,7 @@ exports.createGig = async (req, res) => {
 // Get Paginated Gigs for a specific category
 exports.getPaginatedGigs = async (req, res) => {
     try {
-        const { category, page = 1, limit = 10 } = req.query;
+        const { category, page = 1, limit = 10, search = '' } = req.query;
         const skip = (page - 1) * limit;
         const userCourse = req.user.course;
         const populateFields = 'name college course';
@@ -58,6 +58,14 @@ exports.getPaginatedGigs = async (req, res) => {
             query.targeted_expertises = userCourse;
         } else if (category === 'misc') {
             query['reward.type'] = 'CUSTOM';
+        }
+
+        // Add search filtering
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
         }
 
         if (category === 'random') {
@@ -138,6 +146,11 @@ exports.pounceGig = async (req, res) => {
         const gig = await Gig.findById(req.params.id).populate('requester', 'name college course auto_pounce_message');
         if (!gig) return res.status(404).json({ msg: "Gig not found" });
 
+        // Security: Prevent pouncing on non-OPEN gigs
+        if (gig.status !== 'OPEN' && !gig.pouncers.includes(req.user.id)) {
+            return res.status(400).json({ msg: "This gig is already being handled by another Cat! 🐾" });
+        }
+
         // Check if requester is the pouncer
         if (gig.requester._id.toString() === req.user.id) {
             return res.status(400).json({ msg: "You cannot pounce on a request you personally made." });
@@ -148,13 +161,17 @@ exports.pounceGig = async (req, res) => {
         if (!conversation) {
             conversation = new Conversation({
                 gig: gig._id,
-                members: [gig.requester._id]
+                members: [gig.requester._id],
+                lastRead: new Map([[gig.requester._id.toString(), new Date()]])
             });
         }
         
         // Add current user if not already in conversation
         if (!conversation.members.includes(req.user.id)) {
             conversation.members.push(req.user.id);
+            // Pouncer just joined and is being redirected to chat, so mark as read
+            if (!conversation.lastRead) conversation.lastRead = new Map();
+            conversation.lastRead.set(req.user.id, new Date());
         }
         await conversation.save();
 
@@ -214,5 +231,65 @@ exports.completeGig = async (req, res) => {
     } catch (err) {
         console.error("❌ Complete Gig Error:", err);
         res.status(500).json({ msg: "Error completing gig" });
+    }
+};
+
+// Get Gigs submitted by the current user
+exports.getMyGigs = async (req, res) => {
+    try {
+        const gigs = await Gig.find({ requester: req.user.id })
+            .populate('requester', 'name college course')
+            .sort({ createdAt: -1 });
+        res.json(gigs);
+    } catch (err) {
+        console.error("❌ Get My Gigs Error:", err);
+        res.status(500).json({ msg: "Error fetching your gigs" });
+    }
+};
+
+// Delete a Gig (Requester Only)
+exports.deleteGig = async (req, res) => {
+    try {
+        const gig = await Gig.findById(req.params.id);
+        if (!gig) return res.status(404).json({ msg: "Gig not found" });
+
+        // Security: Only requester can delete
+        if (gig.requester.toString() !== req.user.id) {
+            return res.status(403).json({ msg: "You can only delete your own gigs!" });
+        }
+
+        await Gig.findByIdAndDelete(req.params.id);
+
+        // Emit to all connected clients so it disappears from feeds
+        req.io.emit('gig_deleted', { gigId: req.params.id });
+
+        res.json({ msg: "Gig deleted successfully! 🐾" });
+    } catch (err) {
+        console.error("❌ Delete Gig Error:", err);
+        res.status(500).json({ msg: "Error deleting gig" });
+    }
+};
+
+// Get Gig Stats for Data Visualization
+exports.getGigStats = async (req, res) => {
+    try {
+        const stats = await Gig.aggregate([
+            { $group: { _id: "$status", count: { $sum: 1 } } }
+        ]);
+        
+        const formattedStats = {
+            OPEN: 0,
+            IN_PROGRESS: 0,
+            COMPLETED: 0
+        };
+        
+        stats.forEach(s => {
+            formattedStats[s._id] = s.count;
+        });
+        
+        res.json(formattedStats);
+    } catch (err) {
+        console.error("❌ Gig Stats Error:", err);
+        res.status(500).json({ msg: "Error fetching stats" });
     }
 };
