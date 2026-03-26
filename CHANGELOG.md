@@ -13,7 +13,6 @@
 - **E2EE Bot Handshakes:** Bots now participate in the WhisperSquad protocol, generating real P-256 keys and performing ECDH handshakes to send fully encrypted whispers.
 - **Unread Notification System:** Added a database-backed "unread" indicator that tracks `lastRead` timestamps per member, reflecting real-time activity on the Dashboard and Chat sidebar.
 - **Real-time Stat Streams:** The "Pride Activity" widget now utilizes WebSocket listeners to update marketplace statistics instantly as gigs are posted, pounced, or finished.
-- **Bot Documentation:** Created `BOT_SIMULATOR.md` to detail the architecture and behavior of the new simulation suite.
 
 ## 2026-03-25 15:00
 ### Version-0.4.0-Alpha+202603251500
