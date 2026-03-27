@@ -313,8 +313,6 @@ exports.getAdvancedAnalytics = async (req, res) => {
             { $match: { status: 'COMPLETED' } },
             {
                 $lookup: {
-    ...
-
                     from: 'users',
                     localField: 'requester',
                     foreignField: '_id',
