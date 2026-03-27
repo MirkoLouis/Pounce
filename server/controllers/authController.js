@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// Handles new user registration, including password hashing and generating an initial authentication token.
 exports.register = async (req, res) => {
     try {
         const { name, msu_email, password, college, course } = req.body;
@@ -38,6 +39,7 @@ exports.register = async (req, res) => {
     }
 };
 
+// Authenticates users by verifying credentials and returning a signed JWT for subsequent API access.
 exports.login = async (req, res) => {
     try {
         const { msu_email, password } = req.body;
@@ -57,6 +59,7 @@ exports.login = async (req, res) => {
     }
 };
 
+// Returns the full profile of the currently authenticated user, excluding sensitive fields like passwords.
 exports.me = async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
@@ -66,6 +69,7 @@ exports.me = async (req, res) => {
     }
 };
 
+// Allows users to update their profile information, including academic details and security credentials.
 exports.updateProfile = async (req, res) => {
     try {
         const { name, college, course, auto_pounce_message, password, publicKey } = req.body;
@@ -92,6 +96,7 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
+// Aggregates and exports all user-specific data to provide transparency and a portable backup for the user.
 exports.backupData = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -122,3 +127,4 @@ exports.backupData = async (req, res) => {
         res.status(500).json({ msg: "Error generating backup" });
     }
 };
+

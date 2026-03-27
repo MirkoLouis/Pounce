@@ -6,22 +6,31 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as crypto from '../services/crypto';
 import { useSocket } from '../components/GlobalSetup';
 
+/**
+ * ChatPage Component.
+ * The primary interface for secure, real-time communication between users.
+ * Implements End-to-End Encryption (E2EE) using ECDH and AES-GCM for all messages.
+ */
 const ChatPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const socket = useSocket();
     
+    // Core state for conversations and messaging
     const [conversations, setConversations] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
-    const [sharedKey, setSharedKey] = useState(null);
+    const [sharedKey, setSharedKey] = useState(null); // Derived AES key for current session
     const [gigStatus, setGigStatus] = useState('IN_PROGRESS');
     const [isLoading, setIsLoading] = useState(true);
+    
+    // Presence tracking state
     const [isOtherUserOnline, setIsOtherUserOnline] = useState(false);
     const [otherUserLastSeen, setOtherUserLastSeen] = useState(null);
     
+    // Persistent refs for DOM and cryptographic objects
     const scrollRef = useRef();
     const myKeyPair = useRef(null);
     const autoMessageSent = useRef(false);
@@ -30,6 +39,7 @@ const ChatPage = () => {
     const selectedChatRef = useRef(null);
     const sharedKeyRef = useRef(null);
 
+    // Synchronize refs with state to ensure listeners always have the latest context
     useEffect(() => {
         selectedChatRef.current = selectedChat;
     }, [selectedChat]);
@@ -38,10 +48,11 @@ const ChatPage = () => {
         sharedKeyRef.current = sharedKey;
     }, [sharedKey]);
 
-    // 1. Initial Data Fetch
+    // 1. Initial Data Fetch: Load user profile and conversation list
     useEffect(() => {
         const init = async () => {
             try {
+                // Retrieve/Generate local E2EE keys
                 myKeyPair.current = await crypto.getOrGenerateKeyPair();
                 const [userRes, chatRes] = await Promise.all([
                     api.get('/auth/me'),
@@ -60,7 +71,7 @@ const ChatPage = () => {
         init();
     }, [navigate]);
 
-    // 2. Handle Chat Selection from URL
+    // 2. Deep Linking: Handle Chat Selection from URL parameters
     useEffect(() => {
         const chatId = searchParams.get('id');
         if (chatId && conversations.length > 0) {
@@ -71,28 +82,31 @@ const ChatPage = () => {
         }
     }, [searchParams, conversations, selectedChat]);
 
-    // 3. Handshake & History Fetch
+    // 3. Handshake & History Fetch: Initialize secure session when a chat is selected
     useEffect(() => {
         if (selectedChat && currentUser && socket) {
             socket.emit('join_chat', selectedChat._id);
-            setMessages([]); // Clear for new chat
+            setMessages([]); 
             setSharedKey(null);
             setGigStatus(selectedChat.gig?.status || 'IN_PROGRESS');
 
-            // Mark as read in backend
+            // Synchronize read status with backend
             api.post(`/chat/read/${selectedChat._id}`).catch(console.error);
             
-            // Mark as read locally to clear indicator
+            // Optimistically clear unread indicators locally
             setConversations(prev => prev.map(c => 
                 c._id === selectedChat._id ? { ...c, hasUnread: false } : c
             ));
 
             const otherCat = selectedChat.members.find(m => m._id !== currentUser._id);
-            
             if (otherCat) {
                 socket.emit('check_online', otherCat._id);
             }
 
+            /**
+             * Cryptographic Handshake: Derives a unique shared secret using ECDH.
+             * Decrypts previous message history using the derived key.
+             */
             const performHandshake = async () => {
                 if (otherCat?.publicKey) {
                     try {
@@ -100,10 +114,8 @@ const ChatPage = () => {
                         const derived = await crypto.deriveSharedSecret(myKeyPair.current.privateKey, importedPubKey);
                         setSharedKey(derived);
 
-                        // Fetch history AFTER key is derived
                         const historyRes = await api.get(`/chat/messages/${selectedChat._id}`);
                         
-                        // Decrypt history
                         const decryptedHistory = await Promise.all(historyRes.data.map(async (msg) => {
                             try {
                                 const text = await crypto.decryptMessage(msg.encryptedPayload, derived);
@@ -113,7 +125,7 @@ const ChatPage = () => {
                             }
                         }));
 
-                        // Merge history with any real-time messages that arrived during fetch
+                        // Merge history with incoming real-time messages and sort by time
                         setMessages(prev => {
                             const existingIds = new Set(prev.map(m => m._id));
                             const newHistory = decryptedHistory.filter(m => !existingIds.has(m._id));
@@ -128,24 +140,27 @@ const ChatPage = () => {
         }
     }, [selectedChat, currentUser]);
 
-    // 4. Global Socket Listeners (Attached ONCE)
+    // 4. Socket Lifecycle: Attaching persistent listeners for real-time events
     useEffect(() => {
         if (!socket) return;
 
+        /**
+         * Real-time Message Handler.
+         * Decrypts incoming payloads and updates UI if the message belongs to the active chat.
+         */
         const handleNewMessage = async (data) => {
-            // Use refs to check current context without re-attaching listener
             const currentChat = selectedChatRef.current;
             const currentKey = sharedKeyRef.current;
 
             if (data.chatId === currentChat?._id && currentKey) {
-                // PROACTIVE PRESENCE: If we just got a message, they are online right now
+                // If we receive a message, the other user is definitely active
                 setIsOtherUserOnline(true);
                 setOtherUserLastSeen(new Date());
 
                 try {
                     const decryptedText = await crypto.decryptMessage(data.encryptedPayload, currentKey);
-                    // Functional update with de-duplication
                     setMessages(prev => {
+                        // Prevent duplicate messages from overlapping fetch/socket events
                         if (prev.find(m => m._id === data._id || (m.timestamp === data.timestamp && m.sender === data.sender))) {
                             return prev;
                         }
@@ -155,7 +170,7 @@ const ChatPage = () => {
                     console.error("Decryption error:", err);
                 }
             } else {
-                // Not in current chat, mark as unread in sidebar
+                // Flag unread status in the sidebar for background conversations
                 setConversations(prev => prev.map(c => 
                     c._id === data.chatId ? { ...c, hasUnread: true } : c
                 ));
@@ -202,15 +217,16 @@ const ChatPage = () => {
             socket.off('new_conversation', handleNewConversation);
             socket.off('gig_completed_received');
         };
-    }, [socket]); // Dependent on socket instance
+    }, [socket]); 
 
-    // 5. Automatic Pounce Intro Message
+    // 5. Automated Outreach: Sends the user's custom intro when pouncing from the dashboard
     useEffect(() => {
         const isPounce = searchParams.get('pounce') === 'true';
 
         if (isPounce && sharedKey && currentUser && selectedChat && !autoMessageSent.current) {
             const sendAutoMessage = async () => {
                 let text = currentUser.auto_pounce_message || "Hello! I'm interested in this gig.";
+                // Dynamic placeholder replacement for personalized intros
                 text = text.replace("[Name]", currentUser.name.split(' ')[0])
                            .replace("[College]", currentUser.college);
 
@@ -223,7 +239,6 @@ const ChatPage = () => {
                 };
 
                 socket.emit('send_message', messageData);
-                // Functional update for optimistic UI
                 setMessages(prev => [...prev, { ...messageData, text }]);
                 autoMessageSent.current = true;
             };
@@ -231,16 +246,21 @@ const ChatPage = () => {
         }
     }, [sharedKey, currentUser, selectedChat, searchParams]);
 
+    // Ensure chat window stays focused on the latest message
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }, [messages]);
 
+    /**
+     * Sends a new encrypted message.
+     * Encrypts the payload locally before emitting via socket to maintain zero-knowledge privacy.
+     */
     const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!message.trim() || !selectedChat || !sharedKey || gigStatus === 'COMPLETED') return;
 
         const textToEncrypt = message;
-        setMessage(''); // Clear input early
+        setMessage(''); // Clear input for better perceived performance
 
         try {
             const encryptedPayload = await crypto.encryptMessage(textToEncrypt, sharedKey);
@@ -259,6 +279,10 @@ const ChatPage = () => {
         }
     };
 
+    /**
+     * Finalizes the associated gig.
+     * Triggers a status update for both parties and locks the chat.
+     */
     const handleCompleteGig = async () => {
         if (!window.confirm("Mark this gig as done and confirm payment? 🐾")) return;
         
@@ -271,6 +295,9 @@ const ChatPage = () => {
         }
     };
 
+    /**
+     * Determines the human-readable presence status of the other user.
+     */
     const getPresenceStatus = () => {
         if (!isOtherUserOnline) return { label: 'Cat is Offline', color: 'text-slate-300' };
         if (!otherUserLastSeen) return { label: 'Cat is Online', color: 'text-green-500' };
@@ -283,6 +310,7 @@ const ChatPage = () => {
         return { label: 'Cat is Online', color: 'text-green-500' };
     };
 
+    // Global loading state for initial system wake-up
     if (isLoading) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
@@ -294,7 +322,7 @@ const ChatPage = () => {
 
     return (
         <div className="flex h-screen bg-white font-sans overflow-hidden text-slate-900">
-            {/* Sidebar */}
+            {/* Sidebar: Chat navigation and discovery */}
             <div className="w-full md:w-96 border-r border-slate-100 flex flex-col bg-slate-50/50">
                 <div className="p-6 text-slate-900">
                     <div className="flex items-center justify-between mb-8">
@@ -315,6 +343,7 @@ const ChatPage = () => {
                     </div>
                 </div>
 
+                {/* Conversation List */}
                 <div className="flex-grow overflow-y-auto no-scrollbar px-4 space-y-2">
                     {conversations.map((chat) => (
                         <div 
@@ -351,10 +380,11 @@ const ChatPage = () => {
                 </div>
             </div>
 
-            {/* Main Chat Area */}
+            {/* Main Chat Interface */}
             <div className="flex-grow flex flex-col bg-white">
                 {selectedChat ? (
                     <>
+                        {/* Chat Header: Presence and security status */}
                         <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white/80 backdrop-blur-md z-10">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-alab-orange">
@@ -391,6 +421,7 @@ const ChatPage = () => {
                                     </div>
                                 </div>
                             </div>
+                            {/* Task Completion Control for the requester */}
                             {selectedChat.gig?.requester === currentUser?._id && gigStatus !== 'COMPLETED' && (
                                 <button 
                                     onClick={handleCompleteGig}
@@ -401,7 +432,9 @@ const ChatPage = () => {
                             )}
                         </div>
 
+                        {/* Message Feed */}
                         <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar bg-slate-50/20">
+                            {/* Completion Status Indicator */}
                             {gigStatus === 'COMPLETED' && (
                                 <div className="flex flex-col items-center mb-8">
                                     <motion.div 
@@ -417,6 +450,7 @@ const ChatPage = () => {
                                 </div>
                             )}
 
+                            {/* Security Information for new chats */}
                             {messages.length === 0 && gigStatus !== 'COMPLETED' && (
                                 <div className="flex flex-col items-center mb-8">
                                     <div className="p-6 bg-white border border-slate-100 rounded-[2.5rem] shadow-sm text-center max-w-xs">
@@ -428,6 +462,7 @@ const ChatPage = () => {
                                 </div>
                             )}
 
+                            {/* Individual Message Bubbles */}
                             {messages.map((msg, i) => (
                                 <div key={i} className={`flex ${msg.sender === currentUser?._id ? 'justify-end' : 'justify-start'}`}>
                                     <div className={`max-w-md p-4 rounded-3xl font-medium text-sm shadow-sm ${
@@ -441,6 +476,7 @@ const ChatPage = () => {
                             ))}
                         </div>
 
+                        {/* Input Area: Message entry and transmission */}
                         <div className="p-4 bg-white border-t border-slate-50">
                             <form className="relative flex items-center gap-4" onSubmit={handleSendMessage}>
                                 <div className="flex-grow relative">
@@ -463,6 +499,7 @@ const ChatPage = () => {
                         </div>
                     </>
                 ) : (
+                    /* Placeholder for when no chat is active */
                     <div className="h-full flex flex-col items-center justify-center text-slate-300 p-10 text-center">
                         <Cat className="w-20 h-20 opacity-10 mb-6" />
                         <h3 className="text-2xl font-black text-slate-900 italic tracking-tight mb-2 uppercase">Silence in the pride</h3>

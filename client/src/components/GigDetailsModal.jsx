@@ -4,21 +4,34 @@ import { X, User, GraduationCap, Briefcase, MapPin, Zap, MessageSquare, ShieldAl
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * Modal component for displaying detailed information about a specific gig.
+ * Allows users to "Pounce" (accept/inquire) on a gig, which initiates a chat conversation.
+ */
 const GigDetailsModal = ({ gig, isOpen, onClose }) => {
     const navigate = useNavigate();
+    
+    // UI states for handling asynchronous actions and image loading
     const [loading, setLoading] = useState(false);
     const [imageLoading, setImageLoading] = useState(gig?.images?.length > 0);
 
+    // Guard clause to prevent rendering if no gig is selected or modal is closed
     if (!isOpen || !gig) return null;
 
+    /**
+     * Handles the "Pounce" action.
+     * Communicates with the backend to create/retrieve a conversation and redirects the user to the chat page.
+     */
     const handlePounce = async () => {
         setLoading(true);
         try {
             const res = await api.post(`/gigs/pounce/${gig._id}`);
-            // If the message contains "already", we don't want to trigger the auto-message
+            
+            // Determine if this is a fresh pounce to trigger an automated intro message
             const isFirstPounce = res.data.msg.toLowerCase().includes("pounce successful");
             
             onClose();
+            // Redirect to chat with the conversation context
             navigate(`/chat?id=${res.data.conversationId}${isFirstPounce ? '&pounce=true' : ''}`);
         } catch (err) {
             alert(err.response?.data?.msg || "Error during pounce");
@@ -29,6 +42,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Backdrop for the modal */}
             <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
@@ -37,13 +51,14 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                 className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             
+            {/* Modal Container */}
             <motion.div 
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
                 className="relative w-full max-w-5xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[650px]"
             >
-                {/* Image Section */}
+                {/* Image Section: Visual representation of the gig */}
                 <div className="md:w-1/2 bg-white relative overflow-hidden group">
                     {gig.images && gig.images.length > 0 ? (
                         <>
@@ -67,7 +82,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                     )}
                 </div>
 
-                {/* Content Section */}
+                {/* Content Section: Detailed gig information */}
                 <div className="md:w-1/2 flex flex-col h-full bg-white relative">
                     <button 
                         onClick={onClose}
@@ -77,7 +92,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                     </button>
 
                     <div className="p-6 md:p-8 overflow-y-auto bg-white">
-                        {/* Header */}
+                        {/* Header: Title and Requester info */}
                         <div className="mb-4">
                             <div className="flex items-center gap-2 mb-2">
                                 <span className="px-3 py-1 bg-orange-50 text-alab-orange text-[9px] font-black uppercase tracking-widest rounded-full">
@@ -100,7 +115,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Description */}
+                        {/* Description: Task details */}
                         <div className="mb-4 p-4 bg-white rounded-[1.5rem] border border-slate-100">
                             <h3 className="text-[16px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Zap className="w-3 h-3 text-alab-orange" /> Gig Details
@@ -110,9 +125,9 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             </p>
                         </div>
 
-                        {/* Info Rows */}
+                        {/* Info Rows: Requirements and Rewards */}
                         <div className="flex flex-col gap-3 mb-6">
-                            {/* Targeted Expertise Row */}
+                            {/* Targeted Expertise: Filter for specific college programs */}
                             <div className="p-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm">
                                 <div className="flex items-center gap-2 mb-2">
                                     <GraduationCap className="w-4 h-4 text-alab-orange" />
@@ -131,7 +146,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                 </div>
                             </div>
 
-                            {/* Payout Row */}
+                            {/* Payout Information */}
                             <div className="p-4 bg-alab-orange text-white rounded-[1.5rem] shadow-xl shadow-orange-100">
                                 <div className="flex items-center gap-2 mb-1.5">
                                     <Zap className="w-4 h-4 text-orange-100" />
@@ -143,7 +158,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Action Area */}
+                        {/* Action Area: Interaction buttons */}
                         <div className="flex items-center gap-4">
                             <button 
                                 onClick={handlePounce}

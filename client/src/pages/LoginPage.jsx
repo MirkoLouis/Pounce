@@ -10,6 +10,7 @@ const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
+    // Fetch public gigs to power the background animation
     useEffect(() => {
         const fetchGigs = async () => {
             try {
@@ -25,6 +26,7 @@ const LoginPage = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Authenticate user and store token for session persistence
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
@@ -38,16 +40,16 @@ const LoginPage = () => {
 
     return (
         <div className="relative min-h-screen bg-slate-50 flex items-center justify-center overflow-hidden font-sans">
-            {/* Background Animation - Floating Gig Cards */}
+            {/* Background Animation - Floating Gig Cards to showcase marketplace activity */}
             <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                 <AnimatePresence>
                     {publicGigs.map((gig, idx) => (
                         <motion.div
-                            key={gig._id} // Stable key for smooth transition
+                            key={gig._id}
                             initial={{ 
                                 opacity: 0, 
                                 scale: 0.8,
-                                x: `${(idx * 7) % 100}vw`, // Deterministic but spread out
+                                x: `${(idx * 7) % 100}vw`,
                                 y: "110vh" 
                             }}
                             animate={{ 
@@ -82,7 +84,7 @@ const LoginPage = () => {
             </div>
 
 
-            {/* Login Card */}
+            {/* Login Card - Primary user interface for authentication */}
             <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}

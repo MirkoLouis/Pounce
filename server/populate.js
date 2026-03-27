@@ -9,15 +9,20 @@ const Gig = require('./models/Gig');
 const fs = require('fs');
 const http = require('http');
 
+// Load academic structure to ensure realistic student and gig data generation.
 const collegeData = JSON.parse(fs.readFileSync(path.join(__dirname, '../COLLEGES.json'), 'utf-8'));
 const allCourses = collegeData.colleges.flatMap(c => [
     ...c.programs.undergraduate,
     ...c.programs.graduate
 ]);
 
+/**
+ * Seeds the database with a high volume of realistic student profiles and marketplace gigs.
+ * Includes force-logout signaling to ensure UI state remains consistent across resets.
+ */
 async function seed(numUsers = 10, numGigs = 30) {
     try {
-        // Attempt to force logout all connected users before wiping the DB
+        // Broadcasts a logout signal to all connected clients before wiping the database.
         try {
             const serverPort = process.env.PORT || 5000;
             http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
@@ -25,7 +30,6 @@ async function seed(numUsers = 10, numGigs = 30) {
             }).on('error', (e) => {
                 // Server might be down, ignore.
             });
-            // Slightly longer delay for broadcast to reach everyone
             await new Promise(r => setTimeout(r, 1500));
         } catch (e) { /* ignore */ }
 
@@ -39,14 +43,13 @@ async function seed(numUsers = 10, numGigs = 30) {
         const createdUsers = [];
         const credentials = [];
 
-        // 0. Create Static Monitor Account
+        // Creates a static administrative/monitor account for development testing.
         const monitorUser = new User({
             name: "Mark Leo Bagood",
             msu_email: "markleo.bagood@g.msuiit.edu.ph",
             password: hashedPassword,
             college: "College of Computer Studies",
             course: "Bachelor of Science in Computer Science",
-            skills: ["Monitoring", "Analytics"],
             rating: 5.0,
             auto_pounce_message: "I am monitoring the pride. 🐾"
         });
@@ -54,7 +57,7 @@ async function seed(numUsers = 10, numGigs = 30) {
         createdUsers.push(monitorUser);
         credentials.push({ email: monitorUser.msu_email, password: 'password', name: monitorUser.name });
 
-        // 1. Generate Users
+        // Generates realistic student profiles with unique ECDH public keys for E2EE simulation.
         for (let i = 0; i < numUsers; i++) {
             const college = faker.helpers.arrayElement(collegeData.colleges);
             const course = faker.helpers.arrayElement([
@@ -69,7 +72,6 @@ async function seed(numUsers = 10, numGigs = 30) {
             const fullName = `${firstName} ${middleInitial}. ${lastName}`;
             const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@g.msuiit.edu.ph`;
 
-            // Generate a valid public key for E2EE simulation
             const keyPair = await crypto.subtle.generateKey(
                 { name: "ECDH", namedCurve: "P-256" },
                 true,
@@ -84,7 +86,6 @@ async function seed(numUsers = 10, numGigs = 30) {
                 password: hashedPassword,
                 college: college.name,
                 course: course,
-                skills: [faker.person.jobType(), faker.person.jobArea()],
                 rating: faker.number.float({ min: 3.5, max: 5, precision: 0.1 }),
                 auto_pounce_message: `Hello I'm ${firstName}, I'm a student from ${college.acronym} and I want to help you with this job.`,
                 publicKey: publicKeyBase64
@@ -93,13 +94,13 @@ async function seed(numUsers = 10, numGigs = 30) {
             await user.save();
             createdUsers.push(user);
             
-            if (i < 10) { // Log the first 10 for the terminal display
+            if (i < 10) {
                 credentials.push({ email, password: 'password', name: fullName });
             }
         }
         console.log(`✅ Created ${numUsers} Cats with properly capitalized names.`);
 
-        // 2. Generate Gigs
+        // Populates the marketplace with random gigs targeting various academic expertises.
         for (let j = 0; j < numGigs; j++) {
             const requester = faker.helpers.arrayElement(createdUsers);
             const isCustomReward = faker.datatype.boolean(0.3);

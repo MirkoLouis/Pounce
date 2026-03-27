@@ -4,23 +4,36 @@ import { X, Image as ImageIcon, Plus, Check, DollarSign, Gift, ChevronRight, Inf
 import collegeData from '../data/colleges.json';
 import api from '../services/api';
 
+/**
+ * RequestGigModal Component.
+ * A multi-step form for creating and posting new gigs to the platform.
+ * Guides users through defining task details, targeting specific expertise, and setting rewards.
+ */
 const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
-    const [step, setStep] = useState(1); // 1: Info, 2: Expertise, 3: Reward
+    // UI state for the multi-step navigation (1: Info, 2: Expertise, 3: Reward)
+    const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
+    
+    // Centralized form state
     const [formData, setFormData] = useState({
         title: '',
         description: '',
-        targeted_expertises: [], // Array of course names
+        targeted_expertises: [], // Stores specific course names selected by the user
         reward: { type: 'PHP', value: '' },
         images: []
     });
 
+    // Tracking selected colleges to dynamically filter the courses/programs shown in Step 2
     const [selectedColleges, setSelectedColleges] = useState([]);
 
+    /**
+     * Toggles a college selection.
+     * Automatically manages the selection/deselection of all associated courses.
+     */
     const toggleCollege = (collegeName) => {
         if (selectedColleges.includes(collegeName)) {
             setSelectedColleges(selectedColleges.filter(c => c !== collegeName));
-            // Also remove courses from this college
+            // Cleanup: remove all courses belonging to this college from targeted_expertises
             const college = collegeData.colleges.find(c => c.name === collegeName);
             const collegeCourses = [...college.programs.undergraduate, ...college.programs.graduate];
             setFormData(prev => ({
@@ -32,6 +45,9 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         }
     };
 
+    /**
+     * Toggles a specific course/expertise requirement for the gig.
+     */
     const toggleCourse = (courseName) => {
         setFormData(prev => ({
             ...prev,
@@ -41,6 +57,9 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         }));
     };
 
+    /**
+     * Advances the form to the next step after basic validation.
+     */
     const handleNext = () => {
         if (step === 1) {
             if (!formData.title.trim()) return alert("Please provide a gig title 🐾");
@@ -53,9 +72,12 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         }
     };
 
+    /**
+     * Validates and updates the reward value based on its type (numeric for PHP, text for CUSTOM).
+     */
     const handleRewardChange = (val) => {
         if (formData.reward.type === 'PHP') {
-            const cleaned = val.replace(/[^0-9]/g, '');
+            const cleaned = val.replace(/[^0-9]/g, ''); // Ensure only numbers for currency
             setFormData({ ...formData, reward: { ...formData.reward, value: cleaned } });
         } else {
             if (val.length <= 50) {
@@ -64,6 +86,10 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         }
     };
 
+    /**
+     * Processes image uploads, converting them to Base64 for easier transmission/display.
+     * Limits the total number of images to 10.
+     */
     const handleImageUpload = (e) => {
         const files = Array.from(e.target.files);
         if (formData.images.length + files.length > 10) {
@@ -87,6 +113,9 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         });
     };
 
+    /**
+     * Final submission of the gig data to the backend.
+     */
     const handleSubmit = async () => {
         if (!formData.title || !formData.description || formData.targeted_expertises.length === 0 || !formData.reward.value) {
             alert("Please fill in all required fields, including the reward.");
@@ -95,7 +124,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
         setLoading(true);
         try {
             await api.post('/gigs', formData);
-            onGigCreated();
+            onGigCreated(); // Refresh the parent's gig list
             onClose();
         } catch (err) {
             alert("Error creating gig. Please try again.");
@@ -108,6 +137,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Modal Overlay */}
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -116,13 +146,14 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                 className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             
+            {/* Form Container */}
             <motion.div 
                 initial={{ scale: 0.9, y: 20, opacity: 0 }}
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.9, y: 20, opacity: 0 }}
                 className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
             >
-                {/* Header */}
+                {/* Header: Title and contextual help */}
                 <div className="bg-alab-orange p-6 text-white flex justify-between items-center">
                     <div>
                         <h2 className="text-2xl font-black">Post a New Gig 🐾</h2>
@@ -134,7 +165,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                 </div>
 
                 <div className="p-8 max-h-[70vh] overflow-y-auto no-scrollbar">
-                    {/* Step 1: Basic Info */}
+                    {/* Step 1: Basic Info - Core task details and visual aids */}
                     {step === 1 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                             <div>
@@ -189,7 +220,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                         </motion.div>
                     )}
 
-                    {/* Step 2: Targeted Expertise */}
+                    {/* Step 2: Targeted Expertise - Filtering by College and Course */}
                     {step === 2 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
                             <div className="bg-blue-50 p-4 rounded-2xl flex gap-3 text-blue-700">
@@ -250,7 +281,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                         </motion.div>
                     )}
 
-                    {/* Step 3: Reward */}
+                    {/* Step 3: Reward - Defining the incentive for the provider */}
                     {step === 3 && (
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8 py-4">
                             <div className="flex gap-4">
@@ -299,7 +330,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                     )}
                 </div>
 
-                {/* Footer Controls */}
+                {/* Footer Controls: Navigation and submission buttons */}
                 <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between">
                     <button 
                         onClick={() => step > 1 ? setStep(step - 1) : onClose()}

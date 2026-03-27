@@ -10,9 +10,11 @@ const Conversation = require('./models/Conversation');
 const { faker } = require('@faker-js/faker');
 const crypto = require('node:crypto').webcrypto;
 
+// Configuration for bot simulation behavior
 const SERVER_URL = 'http://localhost:5000';
 const NUM_BOTS = 50; // Use 50 active bots for chaotic realism
 
+// Predefined messages to simulate natural chat interactions
 const CHAT_MESSAGES = [
     "Hey! I can help with this.", "Is this still available?", "I have experience with this kind of task.",
     "When do you need this done?", "Can we discuss the reward?", "I'm ready to pounce!",
@@ -21,6 +23,10 @@ const CHAT_MESSAGES = [
     "Just finished the task. Please check.", "Thanks for the opportunity!", "Pouncing now!", "On it!"
 ];
 
+/**
+ * Initializes End-to-End Encryption for a bot user.
+ * Generates ECDH keys to allow secure communication with other users.
+ */
 async function setupE2EE(user) {
     const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
     const exported = await crypto.subtle.exportKey("spki", keyPair.publicKey);
@@ -29,6 +35,10 @@ async function setupE2EE(user) {
     return keyPair;
 }
 
+/**
+ * Encrypts a text message using a shared AES-GCM key.
+ * Ensures that bot messages follow the platform's E2EE protocol.
+ */
 async function encrypt(text, sharedKey) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encodedText = new TextEncoder().encode(text);
@@ -39,36 +49,48 @@ async function encrypt(text, sharedKey) {
     return Buffer.from(combined).toString('base64');
 }
 
+/**
+ * Derives a shared secret between the bot and another user.
+ * Necessary for participating in encrypted conversations.
+ */
 async function deriveSecret(privateKey, otherPubKeyBase64) {
     const binaryKey = Buffer.from(otherPubKeyBase64, 'base64');
     const importedPubKey = await crypto.subtle.importKey("spki", binaryKey, { name: "ECDH", namedCurve: "P-256" }, true, []);
     return await crypto.subtle.deriveKey({ name: "ECDH", public: importedPubKey }, privateKey, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
 
+/**
+ * Orchestrates a single bot's lifecycle.
+ * Manages socket connections, state, and decision-making logic.
+ */
 async function startBot(user) {
+    // Initialize security context
     const keyPair = await setupE2EE(user);
     const token = jwt.sign({ id: user._id, course: user.course }, process.env.JWT_SECRET);
     const socket = io(SERVER_URL, { path: '/api/socket.io', auth: { token } });
     
+    // Tracking bot identity and active session state
     let botId = `🤖 ${user.name.split(' ')[0]}`;
     let activeSharedKeys = new Map();
     let myCurrentGig = null; // Memory of what I'm currently working on
 
     socket.on('connect', () => console.log(`${botId} is now active.`));
 
-    // bot loop
+    /**
+     * Core decision loop for the bot.
+     * Randomly chooses between chatting, posting new gigs, or fulfilling existing ones.
+     */
     const runAction = async () => {
         const rand = Math.random();
 
         try {
-            // PHASE 1: CHAT & COMPLETE (If already working)
+            // PHASE 1: CHAT & COMPLETE (Logic for when the bot is already engaged in a gig)
             if (myCurrentGig) {
-                // Check if gig is still in progress
                 const gigCheck = await Gig.findById(myCurrentGig._id);
                 if (!gigCheck || gigCheck.status !== 'IN_PROGRESS') {
-                    myCurrentGig = null; // Gig finished or deleted, become idle
+                    myCurrentGig = null; // Reset if gig status changed externally
                 } else {
-                    // 40% chance to chat
+                    // Simulate active communication during the task
                     if (rand < 0.40) {
                         const conv = await Conversation.findOne({ gig: myCurrentGig._id }).populate('members', 'publicKey');
                         if (conv) {
@@ -87,8 +109,7 @@ async function startBot(user) {
                         }
                     }
                     
-                    // 10% chance for requester to complete
-                    // Since bot is working on it, let's find the requester and make them complete it
+                    // Logic to finalize a gig to simulate completed transactions
                     if (rand > 0.90) {
                         const requester = await User.findById(myCurrentGig.requester);
                         const reqToken = jwt.sign({ id: requester._id, course: requester.course }, process.env.JWT_SECRET);
@@ -101,9 +122,9 @@ async function startBot(user) {
                 }
             } 
             
-            // PHASE 2: IDLE ACTIONS (Post or Pounce)
+            // PHASE 2: IDLE ACTIONS (Logic for when the bot is looking for work or needs help)
             else {
-                // 25% chance to post a new gig (Increased from 10%)
+                // Creates a new gig to populate the marketplace
                 if (rand < 0.25) {
                     const title = faker.hacker.phrase();
                     const isPHP = Math.random() > 0.3;
@@ -121,7 +142,7 @@ async function startBot(user) {
                     }, { headers: { 'x-auth-token': token } });
                     console.log(`${botId} 📢 NEW GIG: "${title}"`);
                 } 
-                // 15% chance to pounce on an open gig (Decreased from 20%)
+                // Accepts an open gig to simulate platform activity
                 else if (rand < 0.40) {
                     const randomGigs = await Gig.aggregate([
                         { $match: { status: 'OPEN', requester: { $ne: user._id } } },
@@ -140,27 +161,33 @@ async function startBot(user) {
                 }
             }
         } catch (e) {
-            // console.error(`Error for ${botId}:`, e.message);
+            // Silently handle errors to keep the simulation running smoothly
         }
 
-        // Schedule next action with random jitter (2-5 seconds)
+        // Schedule next action with random jitter to avoid synchronized behavior
         setTimeout(runAction, 2000 + Math.random() * 3000);
     };
 
     runAction();
 }
 
+/**
+ * Entry point for the bot swarm.
+ * Connects to the database and initializes multiple bot routines.
+ */
 async function startSwarm() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('🐾 Swarm Engine V5 (Fully Independent Bots) Initialized...');
 
+    // Select a subset of users to act as bots
     const users = await User.find({ msu_email: { $ne: 'monitor@g.msuiit.edu.ph' } }).limit(NUM_BOTS);
     
     console.log(`🚀 Launching ${users.length} independent bot routines...`);
     for (const user of users) {
-        // We add a small staggered start to keep the server from exploding at t=0
+        // Staggered starts to prevent overwhelming the server on startup
         setTimeout(() => startBot(user), Math.random() * 5000);
     }
 }
 
+// Kick off the simulation
 startSwarm();

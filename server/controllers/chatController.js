@@ -1,6 +1,7 @@
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 
+// Retrieves all conversations for the current user, including metadata like unread status for the sidebar.
 exports.getConversations = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -26,6 +27,7 @@ exports.getConversations = async (req, res) => {
     }
 };
 
+// Updates the user's last read timestamp for a specific conversation to clear unread notifications.
 exports.markAsRead = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -45,6 +47,7 @@ exports.markAsRead = async (req, res) => {
     }
 };
 
+// Fetches the most recent messages for a conversation to populate the chat window.
 exports.getMessages = async (req, res) => {
     try {
         const messages = await Message.find({ conversation: req.params.id })
@@ -56,3 +59,4 @@ exports.getMessages = async (req, res) => {
         res.status(500).json({ msg: "Error fetching message history" });
     }
 };
+

@@ -5,22 +5,31 @@ import collegeData from '../data/colleges.json';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * ProfileModal Component.
+ * Provides a comprehensive interface for users to manage their personal, academic, and security settings.
+ * Includes features for updating profile details, changing passwords, and backing up user data.
+ */
 const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const navigate = useNavigate();
+    
+    // Tracking loading states for individual update actions to provide granular feedback
     const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false, backup: false });
     
-    // Local states for each section
+    // Local state management for form inputs to allow pending changes before submission
     const [nameParts, setNameParts] = useState({ first: '', middle: '', last: '' });
     const [academic, setAcademic] = useState({ college: '', course: '' });
     const [pounceMsg, setPounceMsg] = useState('');
     const [security, setSecurity] = useState({ password: '', confirmPassword: '' });
 
+    // Synchronize local state with the user prop when the modal opens or the user data changes
     useEffect(() => {
         if (user) {
             const parts = user.name.split(' ');
             let first = parts[0] || '';
             let middle = '';
             let last = '';
+            // Parsing MSU-IIT standard name formats
             if (parts.length === 3) {
                 middle = parts[1].replace('.', '');
                 last = parts[2];
@@ -34,11 +43,18 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         }
     }, [user]);
 
+    /**
+     * Clears local authentication and redirects to login.
+     */
     const handleLogout = () => {
         localStorage.removeItem('token');
         navigate('/login');
     };
 
+    /**
+     * Downloads a JSON file containing the user's platform data.
+     * Useful for data portability and personal record keeping.
+     */
     const handleBackup = async () => {
         setLoading(prev => ({ ...prev, backup: true }));
         try {
@@ -60,12 +76,16 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         }
     };
 
+    /**
+     * Universal update function for different profile segments.
+     * Sends targeted updates to the backend and synchronizes the parent component's state.
+     */
     const updateSection = async (section, data) => {
         setLoading(prev => ({ ...prev, [section]: true }));
         try {
             const res = await api.put('/auth/profile', data);
             onUpdate(res.data.user);
-            // Clear passwords if security was updated
+            // Reset security fields after a successful password change
             if (section === 'security') setSecurity({ password: '', confirmPassword: '' });
         } catch (err) {
             alert(err.response?.data?.msg || "Update failed");
@@ -74,6 +94,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         }
     };
 
+    // Helper functions to determine if specific sections have unsaved changes
     const hasNameChanged = () => {
         const fullName = `${nameParts.first} ${nameParts.middle ? nameParts.middle + '. ' : ''}${nameParts.last}`.trim();
         return fullName !== user?.name;
@@ -87,25 +108,28 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         return pounceMsg !== user?.auto_pounce_message;
     };
 
+    // Fetch programs relevant to the selected college for the dropdown
     const selectedCollegeData = collegeData.colleges.find(c => c.name === academic.college);
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* Modal Overlay */}
             <motion.div 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 onClick={onClose}
                 className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
             />
             
+            {/* Modal Content Container */}
             <motion.div 
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
                 className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-                {/* Header */}
+                {/* Header: User branding and identification */}
                 <div className="bg-alab-orange p-8 text-white flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center border-2 border-white/30 text-3xl font-black uppercase">
@@ -121,8 +145,9 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                     </button>
                 </div>
 
+                {/* Form Sections: Scrollable content area */}
                 <div className="flex-grow overflow-y-auto p-8 space-y-10 no-scrollbar">
-                    {/* Name Section */}
+                    {/* Personal Name Editing Section */}
                     <div className="relative group">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -164,7 +189,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                         </div>
                     </div>
 
-                    {/* Academic Section */}
+                    {/* Academic Information Section */}
                     <div className="relative">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -202,7 +227,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                         </div>
                     </div>
 
-                    {/* Auto Message Section */}
+                    {/* Automated Pounce Message Customization */}
                     <div>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -228,7 +253,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                         <p className="text-[10px] text-slate-400 mt-2 italic">Placeholders: [Name], [College]</p>
                     </div>
 
-                    {/* Security Section */}
+                    {/* Security/Password Management Section */}
                     <div className="pt-4 border-t border-slate-100">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
@@ -264,7 +289,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                     </div>
                 </div>
 
-                {/* Footer */}
+                {/* Modal Footer: Session and System actions */}
                 <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
                     <div className="flex gap-4">
                         <button 

@@ -21,11 +21,13 @@ const RegisterPage = () => {
 
     const [selectedCollege, setSelectedCollege] = useState(null);
 
+    // Update form state when a college is picked to filter relevant courses
     const handleCollegeSelect = (college) => {
         setSelectedCollege(college);
         setFormData({ ...formData, college: college.name, course: '' });
     };
 
+    // Register a new user and transition them directly to the marketplace
     const handleRegister = async (e) => {
         e.preventDefault();
         if (formData.password !== formData.confirmPassword) {
@@ -33,6 +35,7 @@ const RegisterPage = () => {
             return;
         }
         try {
+            // Reconstruct full name from parts for a standardized user profile
             const fullName = `${nameParts.first} ${nameParts.middle ? nameParts.middle + '. ' : ''}${nameParts.last}`.trim();
             
             const res = await api.post('/auth/register', {
@@ -53,7 +56,7 @@ const RegisterPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row"
             >
-                {/* Visual Side */}
+                {/* Visual Side - Brand storytelling and onboarding context */}
                 <div className="md:w-1/4 bg-alab-orange p-8 text-white flex flex-col justify-between">
                     <div>
                         <Cat className="w-12 h-12 mb-4" />
@@ -65,7 +68,7 @@ const RegisterPage = () => {
                     </Link>
                 </div>
 
-                {/* Form Side */}
+                {/* Form Side - Structured input for comprehensive user identity */}
                 <div className="md:w-3/4 p-8">
                     <form onSubmit={handleRegister} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

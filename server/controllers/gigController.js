@@ -1,7 +1,7 @@
 const Gig = require('../models/Gig');
 const User = require('../models/User'); 
 
-// Public route for login page animation (Masonry grid)
+// Fetches public gigs for the landing page to showcase active requests to non-logged-in users.
 exports.getPublicGigs = async (req, res) => {
     try {
         const gigs = await Gig.find({ status: 'OPEN' })
@@ -15,7 +15,7 @@ exports.getPublicGigs = async (req, res) => {
     }
 };
 
-// Create a new Gig
+// Creates a new gig request and broadcasts it in real-time to all connected users for immediate visibility.
 exports.createGig = async (req, res) => {
     try {
         const { title, description, targeted_expertises, reward, images } = req.body;
@@ -43,7 +43,7 @@ exports.createGig = async (req, res) => {
     }
 };
 
-// Get Paginated Gigs for a specific category
+// Provides paginated access to gigs filtered by category and search terms for efficient browsing.
 exports.getPaginatedGigs = async (req, res) => {
     try {
         const { category, page = 1, limit = 10, search = '' } = req.query;
@@ -56,6 +56,8 @@ exports.getPaginatedGigs = async (req, res) => {
 
         if (category === 'recommended') {
             query.targeted_expertises = userCourse;
+        } else if (category === 'php') {
+            query['reward.type'] = 'PHP';
         } else if (category === 'misc') {
             query['reward.type'] = 'CUSTOM';
         }
@@ -90,7 +92,7 @@ exports.getPaginatedGigs = async (req, res) => {
     }
 };
 
-// Get Dashboard Feed (Initial load)
+// Initial load for the dashboard, fetching a cross-section of gigs (recommended, reward-based, random) to provide a rich user feed.
 exports.getDashboardFeed = async (req, res) => {
     try {
         const userCourse = req.user.course;
@@ -110,7 +112,15 @@ exports.getDashboardFeed = async (req, res) => {
         .populate('requester', populateFields)
         .limit(20);
 
-        // 3. Misc Jobs (Non-monetary rewards)
+        // 3. PHP Rewards
+        const phpJobs = await Gig.find({ 
+            status: 'OPEN', 
+            'reward.type': 'PHP' 
+        })
+        .populate('requester', populateFields)
+        .limit(20);
+
+        // 4. Misc Jobs (Non-monetary rewards)
         const miscJobs = await Gig.find({ 
             status: 'OPEN', 
             'reward.type': 'CUSTOM' 
@@ -118,7 +128,7 @@ exports.getDashboardFeed = async (req, res) => {
         .populate('requester', populateFields)
         .limit(20);
 
-        // 4. Random Jobs
+        // 5. Random Jobs
         const randomJobs = await Gig.aggregate([
             { $match: { status: 'OPEN' } },
             { $sample: { size: 20 } }
@@ -128,6 +138,7 @@ exports.getDashboardFeed = async (req, res) => {
         res.json({
             all: allJobs,
             recommended: recommendedJobs,
+            php: phpJobs,
             misc: miscJobs,
             random: populatedRandom
         });
@@ -138,7 +149,7 @@ exports.getDashboardFeed = async (req, res) => {
     }
 };
 
-// Pounce on a Gig (Join Squad)
+// Handles a user pouncing on a gig, initializing a conversation and updating gig status to ensure exclusive collaboration.
 const Conversation = require('../models/Conversation');
 
 exports.pounceGig = async (req, res) => {
@@ -210,7 +221,7 @@ exports.pounceGig = async (req, res) => {
     }
 };
 
-// Complete Gig (Requester Only)
+// Marks a gig as completed by the requester, closing the request and notifying all participants.
 exports.completeGig = async (req, res) => {
     try {
         const gig = await Gig.findById(req.params.id);
@@ -234,7 +245,7 @@ exports.completeGig = async (req, res) => {
     }
 };
 
-// Get Gigs submitted by the current user
+// Retrieves all gigs submitted by the authenticated user to manage their active and past requests.
 exports.getMyGigs = async (req, res) => {
     try {
         const gigs = await Gig.find({ requester: req.user.id })
@@ -247,7 +258,7 @@ exports.getMyGigs = async (req, res) => {
     }
 };
 
-// Delete a Gig (Requester Only)
+// Deletes a gig from the database and removes it from all active client feeds in real-time.
 exports.deleteGig = async (req, res) => {
     try {
         const gig = await Gig.findById(req.params.id);
@@ -270,7 +281,7 @@ exports.deleteGig = async (req, res) => {
     }
 };
 
-// Get Gig Stats for Data Visualization
+// Aggregates gig counts by status to provide data for the dashboard statistics charts.
 exports.getGigStats = async (req, res) => {
     try {
         const stats = await Gig.aggregate([
@@ -293,3 +304,60 @@ exports.getGigStats = async (req, res) => {
         res.status(500).json({ msg: "Error fetching stats" });
     }
 };
+
+// Generates complex analytics by joining gigs with user data to analyze college activity and reward distributions.
+exports.getAdvancedAnalytics = async (req, res) => {
+    try {
+        // Aggregation 2: College Activity (Join Gigs with Users) - Most COMPLETED Gigs
+        const collegeActivity = await Gig.aggregate([
+            { $match: { status: 'COMPLETED' } },
+            {
+                $lookup: {
+    ...
+
+                    from: 'users',
+                    localField: 'requester',
+                    foreignField: '_id',
+                    as: 'requester_info'
+                }
+            },
+            { $unwind: '$requester_info' },
+            {
+                $group: {
+                    _id: '$requester_info.college',
+                    totalGigs: { $sum: 1 }
+                }
+            },
+            { $sort: { totalGigs: -1 } },
+            { $limit: 5 }
+        ]);
+
+        // Aggregation 3: Reward Financial Analysis
+        const rewardStats = await Gig.aggregate([
+            {
+                $group: {
+                    _id: '$reward.type',
+                    count: { $sum: 1 },
+                    avgValue: { 
+                        $avg: { 
+                            $cond: [
+                                { $eq: ['$reward.type', 'PHP'] },
+                                { $toDouble: '$reward.value' },
+                                null
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        res.json({
+            collegeActivity,
+            rewardStats
+        });
+    } catch (err) {
+        console.error("❌ Analytics Error:", err);
+        res.status(500).json({ msg: "Error calculating analytics" });
+    }
+};
+

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User'); // Import the User model to verify existence
 
+// Protects routes by verifying the JWT in the request header and ensuring the corresponding user still exists.
 module.exports = async function (req, res, next) {
     const token = req.header('x-auth-token');
     if (!token) return res.status(401).json({ msg: "No token, authorization denied" });
@@ -20,3 +21,4 @@ module.exports = async function (req, res, next) {
         res.status(401).json({ msg: "Token is not valid" });
     }
 };
+

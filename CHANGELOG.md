@@ -1,5 +1,28 @@
 # CHANGELOG.md
 
+## 2026-03-25 18:00
+### Version-0.5.3-Alpha+202603251800
+
+**FIXED:**
+- **Code Clarity:** Standardized purpose-driven comments across the entire codebase (frontend and backend) explaining the "why" behind every major logic block.
+- **Visual UX:** Refined the Gig Details modal to show a loader specifically for images while keeping the title visible immediately.
+
+**ADDED:**
+- **Architectural Documentation:** Created `NOSQL_DESIGN.md` detailing the system's problem description, collection schemas, and complex aggregation pipelines.
+- **Top Colleges Leaderboard:** Integrated a new MongoDB aggregation query to track and visualize successful gig completions per college.
+- **NoSQL Requirements:** Completed all requirements for the "Design Your Own NoSQL Application" subject, including 3+ distinct aggregation pipelines and CRUD operations.
+
+## 2026-03-25 17:30
+### Version-0.5.2-Alpha+202603251730
+
+**FIXED:**
+- **Schema Refactoring:** Completely removed the unused `skills` attribute from the User model and all related seeding/simulation scripts to streamline student identity.
+- **Identity Recommendations:** Refined the "Recommended" algorithm to focus strictly on college and course identifiers for more accurate gig matching.
+
+**ADDED:**
+- **PHP Rewards Carousel:** Integrated a dedicated carousel for gigs offering monetary (PHP) incentives, positioned prominently before the miscellaneous rewards section.
+- **Static Live Ticker UX:** Formally disabled all navigation and scrolling for the Live Ticker to ensure it acts as a constant, 5-slot fresh feed of the latest marketplace activity.
+
 ## 2026-03-25 17:00
 ### Version-0.5.1-Alpha+202603251700
 

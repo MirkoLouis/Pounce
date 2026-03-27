@@ -1,4 +1,5 @@
 const path = require('path');
+// Loads environment variables from .env file to configure database URIs and secrets.
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
@@ -14,27 +15,28 @@ const Gig = require('./models/Gig');
 const Conversation = require('./models/Conversation');
 const Message = require('./models/Message');
 
-// Initialize Express
+// Initialize Express and HTTP server to handle both REST API and WebSocket connections.
 const app = express();
 const server = http.createServer(app);
+// Sets up Socket.io for real-time communication with a specific path to avoid conflicts with other routes.
 const io = new Server(server, {
     path: '/api/socket.io',
     cors: { origin: "*" }
 });
 
-// MongoDB Connection
+// Establishes a persistent connection to MongoDB for data storage and retrieval.
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// Presence tracking (in-memory for multi-tab handling, synced to MongoDB)
+// Manages real-time user presence in-memory to quickly track online status across multiple browser tabs.
 const onlineCats = new Map(); // userId -> Set of socket IDs
 
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Track activity for all /api routes
+// Tracks user activity on every API request to maintain accurate 'last seen' timestamps in the database.
 app.use(async (req, res, next) => {
     // Attempt to track activity if a token is present
     const authHeader = req.headers.authorization;
@@ -50,6 +52,7 @@ app.use(async (req, res, next) => {
     next();
 });
 
+// Attaches the Socket.io instance to the request object for use within route controllers.
 app.use((req, res, next) => {
     req.io = io; // Attach Socket.io instance
     console.log(`🐾 ${req.method} ${req.url}`);
@@ -78,6 +81,7 @@ app.get('/api/gigs/dashboard', auth, gigController.getDashboardFeed);
 app.get('/api/gigs/feed', auth, gigController.getPaginatedGigs);
 app.get('/api/gigs/my', auth, gigController.getMyGigs);
 app.get('/api/gigs/stats', auth, gigController.getGigStats);
+app.get('/api/gigs/analytics', auth, gigController.getAdvancedAnalytics);
 app.post('/api/gigs/pounce/:id', auth, gigController.pounceGig);
 app.post('/api/gigs/complete/:id', auth, gigController.completeGig);
 app.delete('/api/gigs/:id', auth, gigController.deleteGig);
@@ -87,7 +91,7 @@ app.get('/api/chat/conversations', auth, chatController.getConversations);
 app.post('/api/chat/read/:id', auth, chatController.markAsRead);
 app.get('/api/chat/messages/:id', auth, chatController.getMessages);
 
-// Socket.io Middleware for Authentication
+// Authenticates WebSocket connections using JWT to ensure only authorized users can connect.
 io.use((socket, next) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
     if (!token) return next(new Error("Authentication error: No token provided"));
@@ -99,7 +103,7 @@ io.use((socket, next) => {
     });
 });
 
-// Socket.io Real-time Logic
+// Handles real-time events for messaging, presence tracking, and gig status updates.
 io.on('connection', async (socket) => {
     const userId = socket.userId;
     console.log(`🐾 Cat ${userId} connected:`, socket.id);
@@ -137,6 +141,7 @@ io.on('connection', async (socket) => {
         }
     });
 
+    // Processes outgoing messages, persists them to the DB, and broadcasts them to all participants.
     socket.on('send_message', async (data) => {
         // 1. Save to database FIRST for reliability
         try {
@@ -186,6 +191,7 @@ io.on('connection', async (socket) => {
         socket.to(data.chatId).emit('gig_completed_received', data);
     });
 
+    // Cleans up presence tracking when a socket disconnects, updating DB if no sessions remain.
     socket.on('disconnect', async () => {
         console.log(`😿 Cat ${userId} disconnected`);
         try {
@@ -208,7 +214,7 @@ io.on('connection', async (socket) => {
 // Basic Routes
 app.get('/api/health', (req, res) => res.json({ status: 'Pouncing!' }));
 
-// System Routes (Internal Reset)
+// Provides a global reset mechanism to force all users to re-authenticate if needed.
 app.get('/api/system/force-logout-all', (req, res) => {
     io.emit('force_logout');
     console.log('📢 GLOBAL LOGOUT BROADCAST SENT (DB RESET)');
@@ -219,3 +225,4 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🐱 Alab is live on http://0.0.0.0:${PORT}`);
 });
+

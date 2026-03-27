@@ -7,6 +7,10 @@ import ChatPage from './pages/ChatPage';
 import MyGigs from './pages/MyGigs';
 import GlobalSetup from './components/GlobalSetup';
 
+/**
+ * Root Application Component.
+ * Defines the main routing structure and wraps the app in GlobalSetup for shared state/socket management.
+ */
 const App = () => {
   return (
     <Router>

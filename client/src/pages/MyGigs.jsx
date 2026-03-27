@@ -13,6 +13,7 @@ const MyGigs = () => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
 
+    // Synchronize user profile and their submitted gigs for management
     const fetchData = async () => {
         try {
             const [userRes, gigsRes] = await Promise.all([
@@ -33,6 +34,7 @@ const MyGigs = () => {
         fetchData();
     }, []);
 
+    // Perform permanent deletion of a gig request with user confirmation
     const handleDelete = async (gigId) => {
         if (!window.confirm("Are you sure you want to delete this request? 😿")) return;
         
@@ -48,6 +50,7 @@ const MyGigs = () => {
         }
     };
 
+    // Full-screen loading state for initial data retrieval
     if (loading) {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-white gap-4">
@@ -59,6 +62,7 @@ const MyGigs = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 pb-32">
+            {/* Minimal Header for secondary navigation */}
             <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -91,6 +95,7 @@ const MyGigs = () => {
                 </div>
             </header>
 
+            {/* Main Management Interface - Displays list of user-owned gigs */}
             <main className="max-w-4xl mx-auto pt-12 px-6">
                 <div className="mb-12">
                     <h1 className="text-4xl font-black text-slate-900 italic tracking-tight mb-2">Manage Your Requests 🐾</h1>
@@ -121,6 +126,7 @@ const MyGigs = () => {
                                 <p className="text-slate-500 font-medium line-clamp-2 max-w-xl">{gig.description}</p>
                             </div>
 
+                            {/* Contextual actions: Deletion only available for OPEN gigs */}
                             <div className="flex items-center gap-3 flex-shrink-0">
                                 {gig.status === 'OPEN' && (
                                     <button 
@@ -142,6 +148,7 @@ const MyGigs = () => {
                         </motion.div>
                     ))}
 
+                    {/* Empty state placeholder with CTA */}
                     {gigs.length === 0 && (
                         <div className="py-20 flex flex-col items-center justify-center text-slate-300 bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
                             <Cat className="w-20 h-20 opacity-10 mb-6" />

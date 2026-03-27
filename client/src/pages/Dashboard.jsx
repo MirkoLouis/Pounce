@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare, Briefcase, Search, X, Loader2 } from 'lucide-react';
+import { Cat, Plus, Sparkles, Zap, Box, Compass, ChevronLeft, ChevronRight, MessageSquare, Briefcase, Search, X, Banknote, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import RequestGigModal from '../components/RequestGigModal';
 import GigDetailsModal from '../components/GigDetailsModal';
 import ProfileModal from '../components/ProfileModal';
 import { useSocket } from '../components/GlobalSetup';
 
+/**
+ * GigCarousel Component.
+ * A horizontal scrolling container for displaying a specific category of gigs.
+ * Handles its own pagination and real-time updates for added/updated gigs.
+ */
 const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user, onGigStatusUpdate }) => {
     const scrollRef = useRef(null);
     const [gigs, setGigs] = useState(initialGigs);
@@ -16,27 +21,30 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
     const [hasMore, setHasMore] = useState(true);
     const socket = useSocket();
 
+    // Synchronize local gigs when initialGigs prop changes from parent
     useEffect(() => {
         setGigs(initialGigs);
     }, [initialGigs]);
 
-    // Internal status sync for this specific carousel instance
+    // Listener for status changes (e.g., OPEN to IN_PROGRESS) to remove/update cards in real-time
     useEffect(() => {
         if (!onGigStatusUpdate) return;
         onGigStatusUpdate((updatedGig) => {
             setGigs(prev => {
+                // If a gig is no longer open, it shouldn't be in the general discovery feed
                 if (updatedGig.status !== 'OPEN') return prev.filter(g => g._id !== updatedGig._id);
                 return prev.map(g => g._id === updatedGig._id ? updatedGig : g);
             });
         });
     }, [onGigStatusUpdate]);
 
-    // Handle Real-time updates for THIS carousel
+    // Handle incoming real-time gig creation events
     useEffect(() => {
         if (!socket) return;
 
         const handleNewGig = (newGig) => {
             let shouldAdd = false;
+            // Filter logic to decide if the new gig belongs in this specific carousel
             if (category === 'all') shouldAdd = true;
             else if (category === 'recommended' && user && newGig.targeted_expertises.includes(user.course)) shouldAdd = true;
             else if (category === 'misc' && newGig.reward.type === 'CUSTOM') shouldAdd = true;
@@ -45,7 +53,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                 setGigs(prev => {
                     if (prev.find(g => g._id === newGig._id)) return prev;
                     const newList = [newGig, ...prev];
-                    // If it's the live ticker, keep only top 5 to keep it fresh
+                    // Keep the "Live Ticker" carousel concise
                     if (category === 'all') return newList.slice(0, 5);
                     return newList;
                 });
@@ -53,12 +61,12 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
         };
 
         socket.on('new_gig', handleNewGig);
-
-        return () => {
-            socket.off('new_gig', handleNewGig);
-        };
+        return () => socket.off('new_gig', handleNewGig);
     }, [socket, user, category]);
 
+    /**
+     * Fetches more gigs for pagination as the user scrolls.
+     */
     const fetchMore = useCallback(async () => {
         if (loading || !hasMore || category === 'random') return;
         setLoading(true);
@@ -70,7 +78,6 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                 setHasMore(false);
             } else {
                 setGigs(prev => {
-                    // Filter out any duplicates that might have been added by real-time events
                     const existingIds = new Set(prev.map(g => g._id));
                     const newGigs = res.data.filter(g => !existingIds.has(g._id));
                     return [...prev, ...newGigs];
@@ -84,15 +91,20 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
         }
     }, [page, loading, hasMore, category]);
 
+    /**
+     * Infinite scroll trigger logic.
+     */
     const handleScroll = () => {
         if (!scrollRef.current) return;
         const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-        // If we're within 200px of the end, fetch more
         if (scrollWidth - (scrollLeft + clientWidth) < 300) {
             fetchMore();
         }
     };
 
+    /**
+     * Manual arrow navigation for the carousel.
+     */
     const scroll = (direction) => {
         if (scrollRef.current) {
             const { scrollLeft, clientWidth } = scrollRef.current;
@@ -109,6 +121,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
             </div>
             
             <div className="relative">
+                {/* Navigation Arrows: Only shown on hover for cleaner UI */}
                 {category !== 'all' && (
                     <>
                         <button 
@@ -126,6 +139,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                     </>
                 )}
 
+                {/* Horizontal Scroll Area */}
                 <div 
                     ref={scrollRef}
                     onScroll={category === 'all' ? undefined : handleScroll}
@@ -138,6 +152,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                             whileHover={{ y: -8, rotate: 0.5 }}
                             className="min-w-[calc(20%-1rem)] max-w-[calc(20%-1rem)] h-[220px] bg-white rounded-3xl p-5 shadow-sm border border-slate-100 snap-start flex flex-col justify-between cursor-pointer group/card hover:shadow-xl hover:shadow-orange-100/50 transition-all"
                         >
+                            {/* Card Header & Content */}
                             <div>
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-[9px] font-black text-alab-orange uppercase bg-orange-50 px-2 py-0.5 rounded-lg">
@@ -147,6 +162,7 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                                 <h3 className="font-black text-slate-900 line-clamp-1 mb-1 text-base leading-tight group-hover/card:text-alab-orange transition-colors italic">{gig.title}</h3>
                                 <p className="text-[13px] text-slate-500 line-clamp-3 leading-snug font-medium">{gig.description}</p>
                             </div>
+                            {/* Card Footer: Reward details */}
                             <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-50">
                                 <div className="h-8 flex items-center">
                                     <span className="text-[13px] font-black text-slate-900 line-clamp-2 leading-tight">
@@ -175,24 +191,37 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
     );
 };
 
+/**
+ * Dashboard Component.
+ * The central hub of the application where users discover gigs, view platform analytics, and manage their profile.
+ */
 const Dashboard = () => {
     const navigate = useNavigate();
-    const [feed, setFeed] = useState({ all: [], recommended: [], misc: [], random: [] });
+    
+    // Core data state
+    const [feed, setFeed] = useState({ all: [], recommended: [], php: [], misc: [], random: [] });
     const [stats, setStats] = useState({ OPEN: 0, IN_PROGRESS: 0, COMPLETED: 0 });
+    const [analytics, setAnalytics] = useState({ collegeActivity: [], rewardStats: [] });
     const [hasUnread, setHasUnread] = useState(false);
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    
+    // Modal visibility state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [selectedGig, setSelectedGig] = useState(null);
-    const socket = useSocket();
-
-    // Search State
+    
+    // Search functionality state
     const [searchTerm, setSearchTerm] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
 
+    const socket = useSocket();
+
+    /**
+     * Executes real-time search queries as the user types.
+     */
     const handleSearch = async (e) => {
         const val = e.target.value;
         setSearchTerm(val);
@@ -214,6 +243,9 @@ const Dashboard = () => {
         }
     };
 
+    /**
+     * Fetches all primary dashboard data on mount.
+     */
     const fetchDashboard = async () => {
         try {
             const userRes = await api.get('/auth/me');
@@ -222,13 +254,16 @@ const Dashboard = () => {
             const res = await api.get('/gigs/dashboard');
             setFeed(res.data);
             
-            const [chatRes, statsRes] = await Promise.all([
+            const [chatRes, statsRes, analyticsRes] = await Promise.all([
                 api.get('/chat/conversations'),
-                api.get('/gigs/stats')
+                api.get('/gigs/stats'),
+                api.get('/gigs/analytics')
             ]);
             setHasUnread(chatRes.data.some(c => c.hasUnread));
             setStats(statsRes.data);
+            setAnalytics(analyticsRes.data);
         } catch (err) {
+            // Fallback for public/guest view or connectivity issues
             const res = await api.get('/gigs/public');
             setFeed({ all: res.data, recommended: [], misc: [], random: res.data });
         } finally {
@@ -240,33 +275,32 @@ const Dashboard = () => {
         fetchDashboard();
     }, []);
 
-    // Listen for new conversations and messages to update the notification dot
+    // Global event listeners for system-wide notifications and data refreshes
     useEffect(() => {
         if (!socket) return;
 
-        const handleNewUnread = () => {
-            setHasUnread(true);
-        };
+        const handleNewUnread = () => setHasUnread(true);
 
         const refreshStats = async () => {
             try {
-                const statsRes = await api.get('/gigs/stats');
+                const [statsRes, analyticsRes] = await Promise.all([
+                    api.get('/gigs/stats'),
+                    api.get('/gigs/analytics')
+                ]);
                 setStats(statsRes.data);
+                setAnalytics(analyticsRes.data);
             } catch (err) {
                 console.error("Stats refresh error:", err);
             }
         };
 
         const handleGigStatus = (updatedGig) => {
-            // Update search results if they are showing
             setSearchResults(prev => prev.filter(g => g._id !== updatedGig._id || updatedGig.status === 'OPEN'));
             refreshStats();
         };
 
         socket.on('new_conversation', handleNewUnread);
         socket.on('receive_message', handleNewUnread);
-        
-        // Listen for gig changes to update the visualization widget
         socket.on('new_gig', refreshStats);
         socket.on('gig_status_update', handleGigStatus);
         socket.on('gig_deleted', refreshStats);
@@ -282,6 +316,7 @@ const Dashboard = () => {
 
     return (
         <div className="min-h-screen bg-slate-50">
+            {/* Header: Core navigation and identity */}
             <header className="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-100">
                 <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
@@ -317,6 +352,7 @@ const Dashboard = () => {
             </header>
 
             <main className="max-w-7xl mx-auto pt-12 text-slate-900">
+                {/* Hero & Search Section */}
                 <div className="px-6 mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                     <div>
                         <h1 className="text-5xl font-black text-slate-900 italic tracking-tight mb-2">Hello, {user?.name?.split(' ')[0] || 'Cat'}! 🐾</h1>
@@ -342,9 +378,9 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Data Visualization Widget */}
-                <div className="px-6 mb-12">
-                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                {/* Platform Insights: Real-time visualization of gig lifecycle */}
+                <div className="px-6 mb-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                             <div className="max-w-xs">
                                 <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-2">Pride Activity</h3>
@@ -401,9 +437,35 @@ const Dashboard = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Top Colleges Leaderboard */}
+                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                        <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-4">Top Colleges 🏆</h3>
+                        <div className="flex-grow space-y-4">
+                            {analytics.collegeActivity.map((college, idx) => (
+                                <div key={college._id} className="relative">
+                                    <div className="flex justify-between items-center mb-1 relative z-10">
+                                        <span className="text-[10px] font-black text-slate-700 uppercase truncate pr-4">{college._id.split(' ').map(w => w[0]).join('')} - {college._id}</span>
+                                        <span className="text-[10px] font-black text-alab-orange">{college.totalGigs}</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${(college.totalGigs / (analytics.collegeActivity[0]?.totalGigs || 1)) * 100}%` }}
+                                            className="h-full bg-alab-orange opacity-60"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                            {analytics.collegeActivity.length === 0 && (
+                                <p className="text-[10px] font-bold text-slate-300 uppercase italic py-8 text-center">Waiting for activity...</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <AnimatePresence mode="wait">
+                    {/* Conditional Rendering: Search Results vs. Discovery Feed */}
                     {isSearching ? (
                         <motion.div 
                             key="search-results"
@@ -468,8 +530,12 @@ const Dashboard = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                         >
+                            {/* Discovery Feed: Categorized carousels for easy browsing */}
                             <GigCarousel title="Recommended" category="recommended" icon={Sparkles} initialGigs={feed.recommended} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
                             <GigCarousel title="Live Ticker" category="all" icon={Zap} initialGigs={feed.all} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+                            <div className="relative">
+                                <GigCarousel title="PHP Rewards" category="php" icon={Banknote} initialGigs={feed.php} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
+                            </div>
                             <GigCarousel title="Misc Rewards" category="misc" icon={Box} initialGigs={feed.misc} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
                             <GigCarousel title="Random Jobs" category="random" icon={Compass} initialGigs={feed.random} onGigClick={setSelectedGig} user={user} onGigStatusUpdate={(cb) => socket?.on('gig_status_update', cb)} />
 
@@ -478,6 +544,7 @@ const Dashboard = () => {
                 </AnimatePresence>
             </main>
 
+            {/* Floating Action Button: Rapid gig creation entry point */}
             <button 
                 onClick={() => setIsModalOpen(true)}
                 className="fixed bottom-10 right-10 w-20 h-20 bg-alab-orange hover:bg-orange-600 text-white rounded-3xl shadow-2xl shadow-orange-300 flex flex-col items-center justify-center transition-all hover:scale-110 active:scale-95 group z-40"
@@ -486,7 +553,7 @@ const Dashboard = () => {
                 <span className="text-[10px] font-black uppercase tracking-tighter">Request</span>
             </button>
 
-            {/* Modals */}
+            {/* Application Modals */}
             <AnimatePresence mode="wait">
                 {isModalOpen && (
                     <RequestGigModal 
