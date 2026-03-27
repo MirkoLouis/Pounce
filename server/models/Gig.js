@@ -21,4 +21,13 @@ const gigSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Performance Optimization: Indexes for high-volume dashboard queries and analytics
+gigSchema.index({ status: 1, createdAt: -1 });
+gigSchema.index({ requester: 1 });
+gigSchema.index({ targeted_expertises: 1 });
+gigSchema.index({ 'reward.type': 1 });
+
+// Full-text search index for keyword discovery
+gigSchema.index({ title: 'text', description: 'text' });
+
 module.exports = mongoose.model('Gig', gigSchema);

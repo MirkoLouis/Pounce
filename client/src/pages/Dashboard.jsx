@@ -54,9 +54,9 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
                 setGigs(prev => {
                     if (prev.find(g => g._id === newGig._id)) return prev;
                     const newList = [newGig, ...prev];
-                    // Keep the "Live Ticker" carousel concise
+                    // Keep the "Live Ticker" extremely concise, others reasonably limited for performance
                     if (category === 'all') return newList.slice(0, 5);
-                    return newList;
+                    return newList.slice(0, 50);
                 });
             }
         };
@@ -443,7 +443,7 @@ const Dashboard = () => {
                     <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                         <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-4">Top Colleges 🏆</h3>
                         <div className="flex-grow space-y-4">
-                            {analytics.collegeActivity.map((college, idx) => {
+                            {analytics.collegeActivity.slice(0, 3).map((college, idx) => {
                                 const collegeInfo = collegesData.colleges.find(c => c.name === college._id);
                                 const acronym = collegeInfo?.acronym || college._id.split(' ').map(w => w[0]).join('');
                                 

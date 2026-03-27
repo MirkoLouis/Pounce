@@ -19,4 +19,8 @@ const userSchema = new mongoose.Schema({
     lastSeen: { type: Date, default: Date.now }
 }, { timestamps: true });
 
+// Performance Optimization: Indexes for joining gigs with students and college analytics
+userSchema.index({ college: 1 });
+userSchema.index({ course: 1 });
+
 module.exports = mongoose.model('User', userSchema);

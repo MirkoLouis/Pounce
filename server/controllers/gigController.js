@@ -98,42 +98,46 @@ exports.getDashboardFeed = async (req, res) => {
         const userCourse = req.user.course;
         const populateFields = 'name college course';
 
-        // 1. All Jobs (Recent first)
-        const allJobs = await Gig.find({ status: 'OPEN' })
+        // Execute all dashboard queries in parallel for maximum performance
+        const [allJobs, recommendedJobs, phpJobs, miscJobs, randomGigsResult] = await Promise.all([
+            // 1. All Jobs (Recent first)
+            Gig.find({ status: 'OPEN' })
+                .populate('requester', populateFields)
+                .sort({ createdAt: -1 })
+                .limit(20),
+
+            // 2. Recommended (Matches user's expertise)
+            Gig.find({ 
+                status: 'OPEN', 
+                targeted_expertises: userCourse 
+            })
             .populate('requester', populateFields)
-            .sort({ createdAt: -1 })
-            .limit(20);
+            .limit(20),
 
-        // 2. Recommended (Matches user's expertise)
-        const recommendedJobs = await Gig.find({ 
-            status: 'OPEN', 
-            targeted_expertises: userCourse 
-        })
-        .populate('requester', populateFields)
-        .limit(20);
+            // 3. PHP Rewards
+            Gig.find({ 
+                status: 'OPEN', 
+                'reward.type': 'PHP' 
+            })
+            .populate('requester', populateFields)
+            .limit(20),
 
-        // 3. PHP Rewards
-        const phpJobs = await Gig.find({ 
-            status: 'OPEN', 
-            'reward.type': 'PHP' 
-        })
-        .populate('requester', populateFields)
-        .limit(20);
+            // 4. Misc Jobs (Non-monetary rewards)
+            Gig.find({ 
+                status: 'OPEN', 
+                'reward.type': 'CUSTOM' 
+            })
+            .populate('requester', populateFields)
+            .limit(20),
 
-        // 4. Misc Jobs (Non-monetary rewards)
-        const miscJobs = await Gig.find({ 
-            status: 'OPEN', 
-            'reward.type': 'CUSTOM' 
-        })
-        .populate('requester', populateFields)
-        .limit(20);
-
-        // 5. Random Jobs
-        const randomJobs = await Gig.aggregate([
-            { $match: { status: 'OPEN' } },
-            { $sample: { size: 20 } }
+            // 5. Random Jobs
+            Gig.aggregate([
+                { $match: { status: 'OPEN' } },
+                { $sample: { size: 20 } }
+            ])
         ]);
-        const populatedRandom = await User.populate(randomJobs, {path: "requester", select: populateFields});
+
+        const populatedRandom = await User.populate(randomGigsResult, {path: "requester", select: populateFields});
 
         res.json({
             all: allJobs,
@@ -311,6 +315,8 @@ exports.getAdvancedAnalytics = async (req, res) => {
         // Aggregation 2: College Activity (Join Gigs with Users) - Most COMPLETED Gigs
         const collegeActivity = await Gig.aggregate([
             { $match: { status: 'COMPLETED' } },
+            // Only project the requester ID for the lookup to save memory
+            { $project: { requester: 1 } },
             {
                 $lookup: {
                     from: 'users',

@@ -13,4 +13,9 @@ const conversationSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Performance Optimization: Indexes for fast squad message retrieval and presence tracking
+conversationSchema.index({ gig: 1 });
+conversationSchema.index({ members: 1 });
+conversationSchema.index({ lastMessageAt: -1 });
+
 module.exports = mongoose.model('Conversation', conversationSchema);

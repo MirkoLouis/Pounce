@@ -6,7 +6,7 @@ const messageSchema = new mongoose.Schema({
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     // Encrypted hash (IV + Ciphertext) to maintain E2EE privacy on the server.
     encryptedPayload: { type: String, required: true },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now, index: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Message', messageSchema);

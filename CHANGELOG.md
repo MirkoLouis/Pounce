@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## 2026-03-27 12:00
+### Version-1.0.1-Beta+202603271200
+
+**FIXED:**
+- **System Lag:** Resolved significant dashboard lag caused by high-concurrency bot activity through database indexing and frontend memory management.
+- **Aggregation Efficiency:** Optimized complex analytics queries by projecting data before performing lookups, reducing server memory usage.
+- **UI Overflow:** Refined the "Top Colleges" leaderboard to strictly show the Top 3 performers for a cleaner Dashboard layout.
+
+**ADDED:**
+- **Database Indexing:** Implemented performance-critical indexes on Gigs, Users, Conversations, and Messages to support thousands of concurrent requests.
+- **Parallel Query Execution:** Refactored the Dashboard backend to fetch all gig categories concurrently using `Promise.all`.
+- **Full-Text Search Index:** Added a native MongoDB text index for high-speed keyword discovery across titles and descriptions.
+
 ## 2026-03-27 11:00
 ### Version-1.0.0-Beta+202603271100
 
