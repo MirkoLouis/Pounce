@@ -13,7 +13,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://0.0.0.0:5000',
+        target: 'http://0.0.0.0:5050',
         changeOrigin: true,
         secure: false,
         ws: true, // Enable WebSocket support for Socket.io

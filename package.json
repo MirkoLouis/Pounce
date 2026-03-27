@@ -1,0 +1,12 @@
+{
+  "name": "pounce-root",
+  "version": "1.0.0",
+  "description": "Root management for Pounce Ecosystem",
+  "scripts": {
+    "start": "./launch.sh",
+    "seed": "cd server && node populate.js",
+    "bot": "cd server && node simulator.js"
+  },
+  "author": "Mark Leo Bagood",
+  "license": "ISC"
+}

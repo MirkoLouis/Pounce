@@ -11,8 +11,8 @@ const { faker } = require('@faker-js/faker');
 const crypto = require('node:crypto').webcrypto;
 
 // Configuration for bot simulation behavior
-const SERVER_URL = 'http://localhost:5000';
-const NUM_BOTS = 50; // Use 50 active bots for chaotic realism
+const SERVER_URL = 'http://localhost:5050';
+const NUM_BOTS = 50; // Number of bots to spawn
 
 // Predefined messages to simulate natural chat interactions
 const CHAT_MESSAGES = [

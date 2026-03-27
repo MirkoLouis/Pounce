@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## 2026-03-27 11:00
+### Version-1.0.0-Beta+202603271100
+
+**FIXED:**
+- **College Acronyms:** Corrected the Dashboard leaderboard to use accurate college abbreviations from `colleges.json`.
+- **Port Consistency:** Standardized the entire ecosystem to use port `5050` (Server) and `5173` (Client) to avoid conflicts.
+- **Bot Persona:** Updated the simulation engine to use official College IDs in automated introductory messages.
+
+**ADDED:**
+- **Unified Launcher:** Created `launch.sh` to concurrently start the Server, Client, and Bot Swarm with a single command.
+- **Database Safety:** Implemented a pre-launch check in the launcher that prevents startup if MongoDB is not running, with a user-friendly error message.
+- **Root Management:** Added a root `package.json` to provide simplified `npm start`, `npm run seed`, and `npm run bot` commands.
+
 ## 2026-03-25 18:00
 ### Version-0.5.4-Alpha+202603270930
 **FIXED:**

@@ -24,7 +24,7 @@ async function seed(numUsers = 10, numGigs = 30) {
     try {
         // Broadcasts a logout signal to all connected clients before wiping the database.
         try {
-            const serverPort = process.env.PORT || 5000;
+            const serverPort = process.env.PORT || 5050;
             http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
                 console.log('📢 Sent global logout signal to server.');
             }).on('error', (e) => {
@@ -87,7 +87,7 @@ async function seed(numUsers = 10, numGigs = 30) {
                 college: college.name,
                 course: course,
                 rating: faker.number.float({ min: 3.5, max: 5, precision: 0.1 }),
-                auto_pounce_message: `Hello I'm ${firstName}, I'm a student from ${college.acronym} and I want to help you with this job.`,
+                auto_pounce_message: `Hello I'm ${firstName}, I'm a student from ${college.id} and I want to help you with this job.`,
                 publicKey: publicKeyBase64
             });
 

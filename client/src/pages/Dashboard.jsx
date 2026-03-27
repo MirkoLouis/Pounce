@@ -7,6 +7,7 @@ import RequestGigModal from '../components/RequestGigModal';
 import GigDetailsModal from '../components/GigDetailsModal';
 import ProfileModal from '../components/ProfileModal';
 import { useSocket } from '../components/GlobalSetup';
+import collegesData from '../data/colleges.json';
 
 /**
  * GigCarousel Component.
@@ -442,21 +443,26 @@ const Dashboard = () => {
                     <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm overflow-hidden flex flex-col">
                         <h3 className="text-xl font-black text-slate-900 italic uppercase tracking-tighter mb-4">Top Colleges 🏆</h3>
                         <div className="flex-grow space-y-4">
-                            {analytics.collegeActivity.map((college, idx) => (
-                                <div key={college._id} className="relative">
-                                    <div className="flex justify-between items-center mb-1 relative z-10">
-                                        <span className="text-[10px] font-black text-slate-700 uppercase truncate pr-4">{college._id.split(' ').map(w => w[0]).join('')} - {college._id}</span>
-                                        <span className="text-[10px] font-black text-alab-orange">{college.totalGigs}</span>
+                            {analytics.collegeActivity.map((college, idx) => {
+                                const collegeInfo = collegesData.colleges.find(c => c.name === college._id);
+                                const acronym = collegeInfo?.acronym || college._id.split(' ').map(w => w[0]).join('');
+                                
+                                return (
+                                    <div key={college._id} className="relative">
+                                        <div className="flex justify-between items-center mb-1 relative z-10">
+                                            <span className="text-[10px] font-black text-slate-700 uppercase truncate pr-4">{acronym} - {college._id}</span>
+                                            <span className="text-[10px] font-black text-alab-orange">{college.totalGigs}</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${(college.totalGigs / (analytics.collegeActivity[0]?.totalGigs || 1)) * 100}%` }}
+                                                className="h-full bg-alab-orange opacity-60"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                                        <motion.div 
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${(college.totalGigs / (analytics.collegeActivity[0]?.totalGigs || 1)) * 100}%` }}
-                                            className="h-full bg-alab-orange opacity-60"
-                                        />
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {analytics.collegeActivity.length === 0 && (
                                 <p className="text-[10px] font-bold text-slate-300 uppercase italic py-8 text-center">Waiting for activity...</p>
                             )}

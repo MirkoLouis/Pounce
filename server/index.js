@@ -221,7 +221,7 @@ app.get('/api/system/force-logout-all', (req, res) => {
     res.json({ success: true });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🐱 Alab is live on http://0.0.0.0:${PORT}`);
 });
