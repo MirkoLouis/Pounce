@@ -1,6 +1,11 @@
 # CHANGELOG.md
 
 ## 2026-03-25 18:00
+### Version-0.5.4-Alpha+202603270930
+**FIXED:**
+- **Server Crash:** Syntax error in gigController.js.
+
+## 2026-03-25 18:00
 ### Version-0.5.3-Alpha+202603251800
 
 **FIXED:**
