@@ -5,9 +5,8 @@ import collegeData from '../data/colleges.json';
 import api from '../services/api';
 
 /**
- * RequestGigModal Component.
- * A multi-step form for creating and posting new gigs to the platform.
- * Guides users through defining task details, targeting specific expertise, and setting rewards.
+ * Multi-step form for posting new gigs.
+ * Steps: 1: Info, 2: Expertise, 3: Reward.
  */
 const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
     // UI state for the multi-step navigation (1: Info, 2: Expertise, 3: Reward)
@@ -87,8 +86,7 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
     };
 
     /**
-     * Processes image uploads, converting them to Base64 for easier transmission/display.
-     * Limits the total number of images to 10.
+     * Convert uploads to Base64 (max 10 images).
      */
     const handleImageUpload = (e) => {
         const files = Array.from(e.target.files);
@@ -350,6 +348,11 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
                 </div>
             </motion.div>
         </div>
+    );
+};
+
+export default RequestGigModal;
+>
     );
 };
 

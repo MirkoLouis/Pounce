@@ -1,7 +1,7 @@
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 
-// Retrieves all conversations for the current user, including metadata like unread status for the sidebar.
+// Fetch user's conversations with unread status for sidebar
 exports.getConversations = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -10,7 +10,7 @@ exports.getConversations = async (req, res) => {
             .populate('members', 'name college course publicKey')
             .sort({ lastMessageAt: -1 });
         
-        // Map to include unread status
+        // Map unread status based on last read timestamp
         const results = conversations.map(c => {
             const lastRead = c.lastRead?.get(userId);
             const hasUnread = !lastRead || new Date(c.lastMessageAt) > new Date(lastRead);
@@ -27,7 +27,7 @@ exports.getConversations = async (req, res) => {
     }
 };
 
-// Updates the user's last read timestamp for a specific conversation to clear unread notifications.
+// Update last read timestamp to clear notifications
 exports.markAsRead = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -47,7 +47,7 @@ exports.markAsRead = async (req, res) => {
     }
 };
 
-// Fetches the most recent messages for a conversation to populate the chat window.
+// Fetch message history for chat window
 exports.getMessages = async (req, res) => {
     try {
         const messages = await Message.find({ conversation: req.params.id })

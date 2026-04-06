@@ -1,7 +1,7 @@
 const Gig = require('../models/Gig');
 const User = require('../models/User'); 
 
-// Fetches public gigs for the landing page to showcase active requests to non-logged-in users.
+// Fetch OPEN gigs for landing page (anonymous access)
 exports.getPublicGigs = async (req, res) => {
     try {
         const gigs = await Gig.find({ status: 'OPEN' })
@@ -15,7 +15,7 @@ exports.getPublicGigs = async (req, res) => {
     }
 };
 
-// Creates a new gig request and broadcasts it in real-time to all connected users for immediate visibility.
+// Create gig and broadcast in real-time
 exports.createGig = async (req, res) => {
     try {
         const { title, description, targeted_expertises, reward, images } = req.body;
@@ -30,7 +30,7 @@ exports.createGig = async (req, res) => {
         });
         let gig = await newGig.save();
         
-        // Populate requester for the real-time feed
+        // Populate requester for real-time feed
         gig = await Gig.findById(gig._id).populate('requester', 'name college course');
 
         // Emit to all connected clients
@@ -43,7 +43,7 @@ exports.createGig = async (req, res) => {
     }
 };
 
-// Provides paginated access to gigs filtered by category and search terms for efficient browsing.
+// Paginated gig fetch with filtering and search
 exports.getPaginatedGigs = async (req, res) => {
     try {
         const { category, page = 1, limit = 10, search = '' } = req.query;
@@ -92,21 +92,21 @@ exports.getPaginatedGigs = async (req, res) => {
     }
 };
 
-// Initial load for the dashboard, fetching a cross-section of gigs (recommended, reward-based, random) to provide a rich user feed.
+// Load dashboard feed with mixed categories
 exports.getDashboardFeed = async (req, res) => {
     try {
         const userCourse = req.user.course;
         const populateFields = 'name college course';
 
-        // Execute all dashboard queries in parallel for maximum performance
+        // Parallel fetch for dashboard performance
         const [allJobs, recommendedJobs, phpJobs, miscJobs, randomGigsResult] = await Promise.all([
-            // 1. All Jobs (Recent first)
+            // Recent jobs
             Gig.find({ status: 'OPEN' })
                 .populate('requester', populateFields)
                 .sort({ createdAt: -1 })
                 .limit(20),
 
-            // 2. Recommended (Matches user's expertise)
+            // Recommended (Expertise match)
             Gig.find({ 
                 status: 'OPEN', 
                 targeted_expertises: userCourse 
@@ -114,7 +114,7 @@ exports.getDashboardFeed = async (req, res) => {
             .populate('requester', populateFields)
             .limit(20),
 
-            // 3. PHP Rewards
+            // PHP Rewards
             Gig.find({ 
                 status: 'OPEN', 
                 'reward.type': 'PHP' 
@@ -122,7 +122,7 @@ exports.getDashboardFeed = async (req, res) => {
             .populate('requester', populateFields)
             .limit(20),
 
-            // 4. Misc Jobs (Non-monetary rewards)
+            // Custom rewards
             Gig.find({ 
                 status: 'OPEN', 
                 'reward.type': 'CUSTOM' 
@@ -130,7 +130,7 @@ exports.getDashboardFeed = async (req, res) => {
             .populate('requester', populateFields)
             .limit(20),
 
-            // 5. Random Jobs
+            // Random sampler
             Gig.aggregate([
                 { $match: { status: 'OPEN' } },
                 { $sample: { size: 20 } }
@@ -153,7 +153,7 @@ exports.getDashboardFeed = async (req, res) => {
     }
 };
 
-// Handles a user pouncing on a gig, initializing a conversation and updating gig status to ensure exclusive collaboration.
+// Initialize conversation and update gig status on pounce
 const Conversation = require('../models/Conversation');
 
 exports.pounceGig = async (req, res) => {
@@ -161,17 +161,17 @@ exports.pounceGig = async (req, res) => {
         const gig = await Gig.findById(req.params.id).populate('requester', 'name college course auto_pounce_message');
         if (!gig) return res.status(404).json({ msg: "Gig not found" });
 
-        // Security: Prevent pouncing on non-OPEN gigs
+        // Prevent pouncing on non-OPEN or already pounced gigs
         if (gig.status !== 'OPEN' && !gig.pouncers.includes(req.user.id)) {
             return res.status(400).json({ msg: "This gig is already being handled by another Cat! 🐾" });
         }
 
-        // Check if requester is the pouncer
+        // Prevent self-pouncing
         if (gig.requester._id.toString() === req.user.id) {
             return res.status(400).json({ msg: "You cannot pounce on a request you personally made." });
         }
 
-        // Initialize or find Conversation
+        // Init or find Conversation
         let conversation = await Conversation.findOne({ gig: gig._id });
         if (!conversation) {
             conversation = new Conversation({
@@ -181,10 +181,9 @@ exports.pounceGig = async (req, res) => {
             });
         }
         
-        // Add current user if not already in conversation
+        // Add current user to conversation
         if (!conversation.members.includes(req.user.id)) {
             conversation.members.push(req.user.id);
-            // Pouncer just joined and is being redirected to chat, so mark as read
             if (!conversation.lastRead) conversation.lastRead = new Map();
             conversation.lastRead.set(req.user.id, new Date());
         }
@@ -211,10 +210,8 @@ exports.pounceGig = async (req, res) => {
             conversationId: conversation._id
         });
 
-        // Broadcast to everyone that the gig status changed (e.g. OPEN -> IN_PROGRESS)
+        // Sync status and notify members
         req.io.emit('gig_status_update', gig);
-
-        // Notify both parties about the new conversation for real-time sidebar updates
         conversation.members.forEach(memberId => {
             req.io.to(`user_${memberId.toString()}`).emit('new_conversation', conversation);
         });
@@ -225,13 +222,13 @@ exports.pounceGig = async (req, res) => {
     }
 };
 
-// Marks a gig as completed by the requester, closing the request and notifying all participants.
+// Close gig and notify participants
 exports.completeGig = async (req, res) => {
     try {
         const gig = await Gig.findById(req.params.id);
         if (!gig) return res.status(404).json({ msg: "Gig not found" });
 
-        // Security: Only requester can finish
+        // Requester only
         if (gig.requester.toString() !== req.user.id) {
             return res.status(403).json({ msg: "Only the requester can mark this as done!" });
         }
@@ -239,7 +236,7 @@ exports.completeGig = async (req, res) => {
         gig.status = 'COMPLETED';
         await gig.save();
 
-        // Broadcast to everyone that the gig is no longer available
+        // Broadcast availability change
         req.io.emit('gig_status_update', gig);
 
         res.json({ msg: "Gig marked as COMPLETED! 🐾", gig });
@@ -249,7 +246,7 @@ exports.completeGig = async (req, res) => {
     }
 };
 
-// Retrieves all gigs submitted by the authenticated user to manage their active and past requests.
+// Fetch user's own submitted gigs
 exports.getMyGigs = async (req, res) => {
     try {
         const gigs = await Gig.find({ requester: req.user.id })
@@ -262,20 +259,20 @@ exports.getMyGigs = async (req, res) => {
     }
 };
 
-// Deletes a gig from the database and removes it from all active client feeds in real-time.
+// Delete gig and remove from client feeds
 exports.deleteGig = async (req, res) => {
     try {
         const gig = await Gig.findById(req.params.id);
         if (!gig) return res.status(404).json({ msg: "Gig not found" });
 
-        // Security: Only requester can delete
+        // Requester only
         if (gig.requester.toString() !== req.user.id) {
             return res.status(403).json({ msg: "You can only delete your own gigs!" });
         }
 
         await Gig.findByIdAndDelete(req.params.id);
 
-        // Emit to all connected clients so it disappears from feeds
+        // Sync deletion
         req.io.emit('gig_deleted', { gigId: req.params.id });
 
         res.json({ msg: "Gig deleted successfully! 🐾" });
@@ -285,7 +282,7 @@ exports.deleteGig = async (req, res) => {
     }
 };
 
-// Aggregates gig counts by status to provide data for the dashboard statistics charts.
+// Aggregate gig counts by status for charts
 exports.getGigStats = async (req, res) => {
     try {
         const stats = await Gig.aggregate([
@@ -309,13 +306,12 @@ exports.getGigStats = async (req, res) => {
     }
 };
 
-// Generates complex analytics by joining gigs with user data to analyze college activity and reward distributions.
+// Advanced analytics for activity and rewards
 exports.getAdvancedAnalytics = async (req, res) => {
     try {
-        // Aggregation 2: College Activity (Join Gigs with Users) - Most COMPLETED Gigs
+        // Top colleges by COMPLETED gigs
         const collegeActivity = await Gig.aggregate([
             { $match: { status: 'COMPLETED' } },
-            // Only project the requester ID for the lookup to save memory
             { $project: { requester: 1 } },
             {
                 $lookup: {
@@ -336,7 +332,7 @@ exports.getAdvancedAnalytics = async (req, res) => {
             { $limit: 5 }
         ]);
 
-        // Aggregation 3: Reward Financial Analysis
+        // Reward type distribution and avg monetary value
         const rewardStats = await Gig.aggregate([
             {
                 $group: {

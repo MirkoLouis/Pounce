@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        'alab-orange': '#FF8C00', // MSUIIT Alab themed orange
+        'alab-orange': '#FF8C00', // Alab themed orange
         'alab-dark': '#1a1a1a',
       }
     },

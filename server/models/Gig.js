@@ -1,14 +1,14 @@
 const mongoose = require('mongoose');
 
-// Stores marketplace requests, including targeted expertise and fulfillment status.
+// Marketplace requests and fulfillment tracking
 const gigSchema = new mongoose.Schema({
     requester: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    // Multiple pouncers are supported for squad-based collaboration.
+    // Multiple pouncers for squad collaboration
     pouncers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     title: { type: String, required: true },
     description: { type: String, required: true, maxlength: 500 },
     images: [String],
-    // Academic programs targeted for specific expertise requirements.
+    // Academic programs for targeted expertise
     targeted_expertises: [String],
     reward: {
         type: { type: String, enum: ['PHP', 'CUSTOM'], default: 'PHP' },
@@ -21,13 +21,13 @@ const gigSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Performance Optimization: Indexes for high-volume dashboard queries and analytics
+// Optimize dashboard queries and analytics
 gigSchema.index({ status: 1, createdAt: -1 });
 gigSchema.index({ requester: 1 });
 gigSchema.index({ targeted_expertises: 1 });
 gigSchema.index({ 'reward.type': 1 });
 
-// Full-text search index for keyword discovery
+// Full-text index for discovery
 gigSchema.index({ title: 'text', description: 'text' });
 
 module.exports = mongoose.model('Gig', gigSchema);

@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## 2026-04-07 01:47
+### Version-1.2.1-Release+202604070147
+
+**FIXED:**
+- **Codebase Documentation:** Refactored comments across all server and client files to adhere to the "COMPREHENSIVE YET CONCISE" ideology, explaining the *why* behind logic blocks.
+- **Project Configuration:** Surgical cleanup of `launch.sh`, `vite.config.js`, and `tailwind.config.js` comments for better readability.
+- **Version Alignment:** Synchronized `package.json`, `README.md`, and internal documentation versions to reflect the current project state.
+
+**ADDED:**
+- **Comprehensive Project Overview:** Created `PROJECT_OVERVIEW.md` detailing the E2EE architecture, real-time infrastructure, and MongoDB aggregation strategies.
+- **Updated Pitch Narrative:** Completely refactored `pitch_script.md` to integrate recent technical milestones like the Bot Swarm and Monitor Center.
+- **Stability Milestone:** Finalized the ecosystem documentation and refactoring phase for the first stable release candidate.
+
 ## 2026-04-06 21:00
 ### Version-1.2.0-Alpha+202604062100
 

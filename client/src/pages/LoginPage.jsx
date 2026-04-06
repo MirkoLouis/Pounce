@@ -10,7 +10,7 @@ const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
-    // Fetch public gigs to power the background animation
+    // Poll public gigs for background animation
     useEffect(() => {
         const fetchGigs = async () => {
             try {

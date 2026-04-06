@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// https://vite.dev/config/
+// Vite configuration
 export default defineConfig({
   plugins: [
     react(),
@@ -16,7 +16,7 @@ export default defineConfig({
         target: 'http://0.0.0.0:5050',
         changeOrigin: true,
         secure: false,
-        ws: true, // Enable WebSocket support for Socket.io
+        ws: true, // Enable Socket.io support
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('🐾 Proxy Error:', err); 
@@ -31,7 +31,7 @@ export default defineConfig({
       },
     },
     hmr: {
-      clientPort: 5173, // Ensure HMR works across the proxy
+      clientPort: 5173, // Fix HMR through proxy
     }
   }
 })

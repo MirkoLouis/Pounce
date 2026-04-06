@@ -6,17 +6,16 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * ProfileModal Component.
- * Provides a comprehensive interface for users to manage their personal, academic, and security settings.
- * Includes features for updating profile details, changing passwords, and backing up user data.
+ * Manage personal, academic, and security settings.
+ * Includes data backup and system reset for admins.
  */
 const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const navigate = useNavigate();
     
-    // Tracking loading states for individual update actions to provide granular feedback
+    // Track loading for async actions
     const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false, backup: false, reset: false });
     
-    // Local state management for form inputs to allow pending changes before submission
+    // Local form state
     const [nameParts, setNameParts] = useState({ first: '', middle: '', last: '' });
     const [academic, setAcademic] = useState({ college: '', course: '' });
     const [pounceMsg, setPounceMsg] = useState('');
@@ -97,8 +96,8 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     };
 
     /**
-     * Universal update function for different profile segments.
-     * Sends targeted updates to the backend and synchronizes the parent component's state.
+     * Universal update for profile segments.
+     * Syncs backend changes with parent state.
      */
     const updateSection = async (section, data) => {
         setLoading(prev => ({ ...prev, [section]: true }));

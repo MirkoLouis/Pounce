@@ -7,16 +7,15 @@ import * as crypto from '../services/crypto';
 import { useSocket } from '../components/GlobalSetup';
 
 /**
- * ChatPage Component.
- * The primary interface for secure, real-time communication between users.
- * Implements End-to-End Encryption (E2EE) using ECDH and AES-GCM for all messages.
+ * Secure chat interface with E2EE.
+ * Protocol: ECDH key exchange + AES-GCM encryption.
  */
 const ChatPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const socket = useSocket();
     
-    // Core state for conversations and messaging
+    // Core state for comms and session
     const [conversations, setConversations] = useState([]);
     const [selectedChat, setSelectedChat] = useState(null);
     const [message, setMessage] = useState('');
@@ -103,11 +102,10 @@ const ChatPage = () => {
                 socket.emit('check_online', otherCat._id);
             }
 
-            /**
-             * Cryptographic Handshake: Derives a unique shared secret using ECDH.
-             * Decrypts previous message history using the derived key.
-             */
-            const performHandshake = async () => {
+    /**
+     * Cryptographic Handshake (ECDH) and history decryption.
+     */
+    const performHandshake = async () => {
                 if (otherCat?.publicKey) {
                     try {
                         const importedPubKey = await crypto.importPublicKey(otherCat.publicKey);
@@ -508,6 +506,17 @@ const ChatPage = () => {
                 )}
             </div>
         </div>
+    );
+};
+
+export default ChatPage;
+     </div>
+        </div>
+    );
+};
+
+export default ChatPage;
+     </div>
     );
 };
 

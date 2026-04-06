@@ -13,7 +13,7 @@ const MyGigs = () => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
 
-    // Synchronize user profile and their submitted gigs for management
+    // Fetch profile and user-owned gigs for management
     const fetchData = async () => {
         try {
             const [userRes, gigsRes] = await Promise.all([

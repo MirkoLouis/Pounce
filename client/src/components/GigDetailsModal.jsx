@@ -5,17 +5,17 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * Modal component for displaying detailed information about a specific gig.
- * Allows users to "Pounce" (accept/inquire) on a gig, which initiates a chat conversation.
+ * Detail modal for gigs.
+ * Handles 'Pounce' action to start chats.
  */
 const GigDetailsModal = ({ gig, isOpen, onClose }) => {
     const navigate = useNavigate();
     
-    // UI states for handling asynchronous actions and image loading
+    // UI states for async actions and image loading
     const [loading, setLoading] = useState(false);
     const [imageLoading, setImageLoading] = useState(true);
 
-    // Reset image loading state whenever a new gig is selected
+    // Reset image loading on gig change
     React.useEffect(() => {
         if (gig?.images?.length > 0) {
             setImageLoading(true);
@@ -24,23 +24,22 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
         }
     }, [gig]);
 
-    // Guard clause to prevent rendering if no gig is selected or modal is closed
+    // Guard against empty/closed state
     if (!isOpen || !gig) return null;
 
     /**
-     * Handles the "Pounce" action.
-     * Communicates with the backend to create/retrieve a conversation and redirects the user to the chat page.
+     * Create/Retrieve conversation and redirect to chat.
      */
     const handlePounce = async () => {
         setLoading(true);
         try {
             const res = await api.post(`/gigs/pounce/${gig._id}`);
             
-            // Determine if this is a fresh pounce to trigger an automated intro message
+            // Check if first pounce to trigger intro message
             const isFirstPounce = res.data.msg.toLowerCase().includes("pounce successful");
             
             onClose();
-            // Redirect to chat with the conversation context
+            // Redirect with conversation context
             navigate(`/chat?id=${res.data.conversationId}${isFirstPounce ? '&pounce=true' : ''}`);
         } catch (err) {
             alert(err.response?.data?.msg || "Error during pounce");
@@ -124,7 +123,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Description: Task details */}
+                        {/* Description: Task context */}
                         <div className="mb-4 p-4 bg-white rounded-[1.5rem] border border-slate-100">
                             <h3 className="text-[16px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Zap className="w-3 h-3 text-alab-orange" /> Gig Details
@@ -136,7 +135,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
 
                         {/* Info Rows: Requirements and Rewards */}
                         <div className="flex flex-col gap-3 mb-6">
-                            {/* Targeted Expertise: Filter for specific college programs */}
+                            {/* Filter for college programs */}
                             <div className="p-4 bg-white border border-slate-100 rounded-[1.5rem] shadow-sm">
                                 <div className="flex items-center gap-2 mb-2">
                                     <GraduationCap className="w-4 h-4 text-alab-orange" />
@@ -155,7 +154,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                 </div>
                             </div>
 
-                            {/* Payout Information */}
+                            {/* Reward info */}
                             <div className="p-4 bg-alab-orange text-white rounded-[1.5rem] shadow-xl shadow-orange-100">
                                 <div className="flex items-center gap-2 mb-1.5">
                                     <Zap className="w-4 h-4 text-orange-100" />

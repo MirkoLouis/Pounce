@@ -11,7 +11,7 @@ const Message = require('./models/Message');
 const fs = require('fs');
 const http = require('http');
 
-// Load academic structure to ensure realistic student and gig data generation.
+// Load academic structure for realistic data
 const collegeData = JSON.parse(fs.readFileSync(path.join(__dirname, '../COLLEGES.json'), 'utf-8'));
 const allCourses = collegeData.colleges.flatMap(c => [
     ...c.programs.undergraduate,
@@ -19,44 +19,41 @@ const allCourses = collegeData.colleges.flatMap(c => [
 ]);
 
 /**
- * Seeds the database with a high volume of realistic student profiles and marketplace gigs.
- * Includes force-logout signaling to ensure UI state remains consistent across resets.
+ * Seed database with realistic profiles and gigs.
+ * Signals force-logout to sync UI state.
  */
 async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
     try {
-        // Broadcasts a logout signal to all connected clients before wiping the database.
+        // Broadcast logout signal before wipe
         if (!isInternal) {
             try {
                 const serverPort = process.env.PORT || 5050;
                 http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
                     console.log('📢 Sent global logout signal to server.');
                 }).on('error', (e) => {
-                    // Server might be down, ignore.
+                    // Ignore if server is down
                 });
                 await new Promise(r => setTimeout(r, 1500));
             } catch (e) { /* ignore */ }
         }
 
-        // Only connect if not already connected (prevents errors when called from the main app)
         if (mongoose.connection.readyState === 0) {
             await mongoose.connect(process.env.MONGODB_URI);
         }
 
         console.log('🐾 Alab is seeding the database with realistic Cats...');
 
-        // CRITICAL: We only delete bots and their gigs. 
-        // Real user accounts (isBot: false) and their public keys are preserved.
+        // Wipe bots and marketplace history; preserve real users
         await User.deleteMany({ isBot: true });
-        await Gig.deleteMany({}); // Gigs are always refreshed for the marketplace feel
-        await Conversation.deleteMany({}); // Wipe history to prevent decryption mismatches
-        await Message.deleteMany({}); // Wipe messages to prevent orphaned history
+        await Gig.deleteMany({}); 
+        await Conversation.deleteMany({}); 
+        await Message.deleteMany({}); 
 
         const hashedPassword = await bcrypt.hash('password', 10);
         const createdUsers = [];
         const credentials = [];
 
-        // Creates or updates the static administrative/monitor account.
-        // Critical: We preserve the existing publicKey if it exists to avoid breaking E2EE history.
+        // Preserve monitor account and its E2EE history
         let monitorUser = await User.findOne({ msu_email: "markleo.bagood@g.msuiit.edu.ph" });
         if (!monitorUser) {
             monitorUser = new User({
@@ -67,16 +64,16 @@ async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
                 course: "Bachelor of Science in Computer Science",
                 rating: 5.0,
                 auto_pounce_message: "I am monitoring the pride. 🐾",
-                isBot: false // Monitor is a real admin account
+                isBot: false 
             });
         } else {
-            monitorUser.password = hashedPassword; // Reset password to default for testing
+            monitorUser.password = hashedPassword; // Default password for testing
         }
         await monitorUser.save();
         createdUsers.push(monitorUser);
         credentials.push({ email: monitorUser.msu_email, password: 'password', name: monitorUser.name });
 
-        // Generates realistic student profiles with unique ECDH public keys for E2EE simulation.
+        // Generate student profiles with unique ECDH keys for E2EE
         for (let i = 0; i < numUsers; i++) {
             const college = faker.helpers.arrayElement(collegeData.colleges);
             const course = faker.helpers.arrayElement([
@@ -108,7 +105,7 @@ async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
                 rating: faker.number.float({ min: 3.5, max: 5, precision: 0.1 }),
                 auto_pounce_message: `Hello I'm ${firstName}, I'm a student from ${college.id} and I want to help you with this job.`,
                 publicKey: publicKeyBase64,
-                isBot: true // Simulated cats are marked as bots
+                isBot: true 
             });
 
             await user.save();
@@ -120,7 +117,7 @@ async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
         }
         console.log(`✅ Created ${numUsers} Cats with properly capitalized names.`);
 
-        // Populates the marketplace with random gigs targeting various academic expertises.
+        // Populate marketplace with random gigs
         for (let j = 0; j < numGigs; j++) {
             const requester = faker.helpers.arrayElement(createdUsers);
             const isCustomReward = faker.datatype.boolean(0.3);
@@ -161,7 +158,7 @@ async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
 
 module.exports = { seed };
 
-// If run directly from CLI
+// CLI entry point
 if (require.main === module) {
     const args = process.argv.slice(2);
     seed(parseInt(args[0]) || 100, parseInt(args[1]) || 200).then(() => {

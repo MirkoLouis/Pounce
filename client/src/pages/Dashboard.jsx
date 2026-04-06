@@ -10,9 +10,8 @@ import { useSocket } from '../components/GlobalSetup';
 import collegesData from '../data/colleges.json';
 
 /**
- * GigCarousel Component.
- * A horizontal scrolling container for displaying a specific category of gigs.
- * Handles its own pagination and real-time updates for added/updated gigs.
+ * Horizontal carousel for gig categories.
+ * Handles pagination and real-time updates.
  */
 const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, user, onGigStatusUpdate }) => {
     const scrollRef = useRef(null);
@@ -22,12 +21,12 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
     const [hasMore, setHasMore] = useState(true);
     const socket = useSocket();
 
-    // Synchronize local gigs when initialGigs prop changes from parent
+    // Sync gigs with parent prop
     useEffect(() => {
         setGigs(initialGigs);
     }, [initialGigs]);
 
-    // Listener for status changes (e.g., OPEN to IN_PROGRESS) to remove/update cards in real-time
+    // Handle real-time status changes (remove non-OPEN gigs)
     useEffect(() => {
         if (!onGigStatusUpdate) return;
         onGigStatusUpdate((updatedGig) => {
@@ -193,8 +192,8 @@ const GigCarousel = ({ title, category, icon: Icon, initialGigs, onGigClick, use
 };
 
 /**
- * Dashboard Component.
- * The central hub of the application where users discover gigs, view platform analytics, and manage their profile.
+ * Application dashboard.
+ * Hub for gig discovery, analytics, and profile management.
  */
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -595,3 +594,8 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+   );
+};
+
+export default Dashboard;
+default Dashboard;

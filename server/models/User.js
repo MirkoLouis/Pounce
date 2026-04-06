@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Defines student identity, security credentials, and real-time presence state.
+// Student identity, security, and presence state
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     msu_email: { type: String, required: true, unique: true },
@@ -8,19 +8,19 @@ const userSchema = new mongoose.Schema({
     college: { type: String, required: true },
     course: { type: String, required: true },
     rating: { type: Number, default: 0 },
-    // Default intro message sent automatically when a user pounces on a gig.
+    // Default intro for pounces
     auto_pounce_message: { 
         type: String, 
         default: "Hello I'm [Name], I'm a student from [College] and I want to help you with this job." 
     },
-    // ECDH Public Key (Base64) used for deriving E2EE shared secrets.
+    // ECDH Public Key (Base64) for E2EE shared secrets
     publicKey: String,
     isBot: { type: Boolean, default: false },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now }
 }, { timestamps: true });
 
-// Performance Optimization: Indexes for joining gigs with students and college analytics
+// Optimize lookups for gigs and analytics
 userSchema.index({ college: 1 });
 userSchema.index({ course: 1 });
 

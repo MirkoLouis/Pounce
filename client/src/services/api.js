@@ -1,11 +1,11 @@
 import axios from 'axios';
 
-// Centralized Axios instance for standardized API communication
+// Axios instance for standardized API comms
 const api = axios.create({
-    baseURL: '/api', // Vite proxy handles the mapping to the backend port
+    baseURL: '/api', 
 });
 
-// Interceptor to automatically attach the security token to every outgoing request
+// Attach x-auth-token to every request
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -14,8 +14,7 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// Global error handler to intercept 401 Unauthorized responses
-// Forces a logout and redirect if the session is invalidated or expired
+// Handle 401 Unauthorized; force logout on session expiry
 api.interceptors.response.use(
     (response) => response,
     (error) => {

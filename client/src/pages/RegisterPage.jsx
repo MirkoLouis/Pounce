@@ -21,7 +21,7 @@ const RegisterPage = () => {
 
     const [selectedCollege, setSelectedCollege] = useState(null);
 
-    // Update form state when a college is picked to filter relevant courses
+    // Filter courses based on selected college
     const handleCollegeSelect = (college) => {
         setSelectedCollege(college);
         setFormData({ ...formData, college: college.name, course: '' });

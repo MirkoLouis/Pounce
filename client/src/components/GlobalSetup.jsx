@@ -4,28 +4,27 @@ import io from 'socket.io-client';
 import api from '../services/api';
 import * as crypto from '../services/crypto';
 
-// Export for legacy compatibility (though useSocket is preferred)
+// Export for legacy compatibility
 export let globalSocket = null;
 
-// Context to provide socket instance to the rest of the application
+// Socket context for global access
 const SocketContext = createContext(null);
 export const useSocket = () => useContext(SocketContext);
 
 /**
- * GlobalSetup Component.
- * Responsible for initializing global services like Socket.io and E2EE keys.
- * Wraps the application to ensure these services are available regardless of the current route.
+ * Initialize global services (Socket.io and E2EE).
+ * Persistent across route changes.
  */
 const GlobalSetup = ({ children }) => {
     const location = useLocation();
     const [socket, setSocket] = useState(null);
-    const isInitialized = useRef(false); // Prevents redundant key setup on every render
+    const isInitialized = useRef(false); // Prevent redundant setup
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        // 1. Initialize Global Socket: Ensures a single persistent connection for real-time updates
+        // Init Global Socket for real-time updates
         if (!globalSocket) {
             const newSocket = io('/', { 
                 path: '/api/socket.io',
@@ -36,7 +35,7 @@ const GlobalSetup = ({ children }) => {
                 console.log('🐾 Cat globally connected!');
             });
 
-            // Handle security events like token expiration or administrative lockouts
+            // Handle security and system resets
             newSocket.on('force_logout', () => {
                 console.log('📢 System-wide logout triggered!');
                 localStorage.removeItem('token');
@@ -49,15 +48,15 @@ const GlobalSetup = ({ children }) => {
             setSocket(globalSocket);
         }
 
-        // 2. Initialize Keys & Update Public Key: Handles E2EE registration for the user
+        // Init E2EE keys and sync with server
         const setupKeys = async () => {
             if (isInitialized.current) return;
             try {
-                // Generate or retrieve the user's ECDH key pair from local storage
+                // Fetch/Generate local ECDH pair
                 const myKeyPair = await crypto.getOrGenerateKeyPair();
                 const pubKeyBase64 = await crypto.exportPublicKey(myKeyPair.publicKey);
                 
-                // Sync the local public key with the server if they differ
+                // Sync public key for peer handshakes
                 const userRes = await api.get('/auth/me');
                 if (userRes.data.publicKey !== pubKeyBase64) {
                     await api.put('/auth/profile', { publicKey: pubKeyBase64 });

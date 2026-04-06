@@ -1,6 +1,6 @@
 {
   "name": "pounce-root",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Root management for Pounce Ecosystem",
   "scripts": {
     "start": "./launch.sh",

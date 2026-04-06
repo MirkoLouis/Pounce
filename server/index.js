@@ -1,5 +1,5 @@
 const path = require('path');
-// Loads environment variables from .env file to configure database URIs and secrets.
+// Load config for DB and secrets
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,59 +9,56 @@ const cors = require('cors');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 
-// Models
+// Data models for core entities
 const User = require('./models/User');
 const Gig = require('./models/Gig');
 const Conversation = require('./models/Conversation');
 const Message = require('./models/Message');
 
-// Initialize Express and HTTP server to handle both REST API and WebSocket connections.
+// Init server for REST and WebSockets
 const app = express();
 const server = http.createServer(app);
-// Sets up Socket.io for real-time communication with a specific path to avoid conflicts with other routes.
+// Socket.io for real-time comms
 const io = new Server(server, {
     path: '/api/socket.io',
     cors: { origin: "*" }
 });
 
-// Establishes a persistent connection to MongoDB for data storage and retrieval.
+// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
     .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
-// Manages real-time user presence in-memory to quickly track online status across multiple browser tabs.
+// Track online users in-memory for speed
 const onlineCats = new Map(); // userId -> Set of socket IDs
 
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Tracks user activity on every API request to maintain accurate 'last seen' timestamps in the database.
+// Update 'last seen' on every request
 app.use(async (req, res, next) => {
-    // Attempt to track activity if a token is present
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
             const token = authHeader.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            // Only update if it's been more than a minute (to save DB ops)
-            // But for this project, let's just do a simple update
             await User.findByIdAndUpdate(decoded.id, { lastSeen: new Date() });
         } catch (e) { /* Invalid token */ }
     }
     next();
 });
 
-// Attaches the Socket.io instance to the request object for use within route controllers.
+// Make Socket.io available in controllers
 app.use((req, res, next) => {
-    req.io = io; // Attach Socket.io instance
+    req.io = io; 
     console.log(`🐾 ${req.method} ${req.url}`);
     next();
 });
 app.use(cors({ origin: true, credentials: true })); 
 app.use(helmet({ contentSecurityPolicy: false })); 
 
-// Import Controllers and Middleware
+// Controller imports
 const authController = require('./controllers/authController');
 const gigController = require('./controllers/gigController');
 const chatController = require('./controllers/chatController');
@@ -92,7 +89,7 @@ app.get('/api/chat/conversations', auth, chatController.getConversations);
 app.post('/api/chat/read/:id', auth, chatController.markAsRead);
 app.get('/api/chat/messages/:id', auth, chatController.getMessages);
 
-// Authenticates WebSocket connections using JWT to ensure only authorized users can connect.
+// Authenticate WebSocket connections via JWT
 io.use((socket, next) => {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
     if (!token) return next(new Error("Authentication error: No token provided"));
@@ -104,18 +101,17 @@ io.use((socket, next) => {
     });
 });
 
-// Handles real-time events for messaging, presence tracking, and gig status updates.
+// Handle real-time messaging and presence
 io.on('connection', async (socket) => {
     const userId = socket.userId;
     console.log(`🐾 Cat ${userId} connected:`, socket.id);
     
-    // Join personal room and update MongoDB presence
+    // Manage user presence and notify peers
     try {
         socket.join(`user_${userId}`);
 
         if (!onlineCats.has(userId)) {
             onlineCats.set(userId, new Set());
-            // First tab/session: Mark online in DB and notify others
             await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
             io.emit('user_status_change', { userId, status: 'online' });
         }
@@ -142,9 +138,8 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // Processes outgoing messages, persists them to the DB, and broadcasts them to all participants.
+    // Persist and broadcast messages to participants
     socket.on('send_message', async (data) => {
-        // 1. Save to database FIRST for reliability
         try {
             const newMessage = new Message({
                 conversation: data.chatId,
@@ -154,7 +149,7 @@ io.on('connection', async (socket) => {
             });
             await newMessage.save();
             
-            // Update conversation: new last message time AND sender has read it
+            // Update last read and message timestamps
             const updateData = { lastMessageAt: new Date() };
             const conversation = await Conversation.findById(data.chatId);
             if (conversation) {
@@ -163,21 +158,18 @@ io.on('connection', async (socket) => {
                 await conversation.save();
             }
             
-            // Also update sender's activity for AFK/Away calculation
             await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
 
             const messageToEmit = { ...data, _id: newMessage._id };
 
-            // Broadcast to the personal rooms of ALL members (except sender)
+            // Broadcast to all member sessions
             const conv = await Conversation.findById(data.chatId).select('members');
             if (conv) {
                 conv.members.forEach(memberId => {
                     const memberStr = memberId.toString();
                     if (memberStr === userId) {
-                        // Send to the sender's OTHER tabs/sessions (excludes current socket)
                         socket.to(`user_${memberStr}`).emit('receive_message', messageToEmit);
                     } else {
-                        // Send to the other member's sessions
                         io.to(`user_${memberStr}`).emit('receive_message', messageToEmit);
                     }
                 });
@@ -192,7 +184,7 @@ io.on('connection', async (socket) => {
         socket.to(data.chatId).emit('gig_completed_received', data);
     });
 
-    // Cleans up presence tracking when a socket disconnects, updating DB if no sessions remain.
+    // Handle disconnects and update online status
     socket.on('disconnect', async () => {
         console.log(`😿 Cat ${userId} disconnected`);
         try {
@@ -201,7 +193,6 @@ io.on('connection', async (socket) => {
                 userSockets.delete(socket.id);
                 if (userSockets.size === 0) {
                     onlineCats.delete(userId);
-                    // Last tab closed: Mark offline in DB and notify others
                     await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
                     io.emit('user_status_change', { userId, status: 'offline' });
                 }
@@ -212,10 +203,10 @@ io.on('connection', async (socket) => {
     });
 });
 
-// Basic Routes
+// Health check endpoint
 app.get('/api/health', (req, res) => res.json({ status: 'Pouncing!' }));
 
-// Provides a global reset mechanism to force all users to re-authenticate if needed.
+// Force logout all for system resets
 app.get('/api/system/force-logout-all', (req, res) => {
     io.emit('force_logout');
     console.log('📢 GLOBAL LOGOUT BROADCAST SENT (DB RESET)');

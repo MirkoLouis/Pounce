@@ -10,11 +10,11 @@ const Conversation = require('./models/Conversation');
 const { faker } = require('@faker-js/faker');
 const crypto = require('node:crypto').webcrypto;
 
-// Configuration for bot simulation behavior
+// Bot swarm configuration
 const SERVER_URL = 'http://localhost:5050';
-const NUM_BOTS = 50; // Number of bots to spawn
+const NUM_BOTS = 50; 
 
-// Predefined messages to simulate natural chat interactions
+// Sample messages for chat simulation
 const CHAT_MESSAGES = [
     "Hey! I can help with this.", "Is this still available?", "I have experience with this kind of task.",
     "When do you need this done?", "Can we discuss the reward?", "I'm ready to pounce!",
@@ -24,9 +24,8 @@ const CHAT_MESSAGES = [
 ];
 
 /**
- * Initializes End-to-End Encryption for a bot user.
- * Generates a deterministic key pair based on the user's ID.
- * This ensures bots can always decrypt their history even after the simulator restarts.
+ * Init E2EE for bot. 
+ * Deterministic keys ensure decryption after restart.
  */
 async function setupE2EE(user) {
     const keyPair = await crypto.subtle.generateKey(
@@ -45,8 +44,7 @@ async function setupE2EE(user) {
 }
 
 /**
- * Encrypts a text message using a shared AES-GCM key.
- * Ensures that bot messages follow the platform's E2EE protocol.
+ * Encrypt message via AES-GCM shared key.
  */
 async function encrypt(text, sharedKey) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -59,8 +57,7 @@ async function encrypt(text, sharedKey) {
 }
 
 /**
- * Derives a shared secret between the bot and another user.
- * Necessary for participating in encrypted conversations.
+ * Derive shared secret for encrypted chat.
  */
 async function deriveSecret(privateKey, otherPubKeyBase64) {
     const binaryKey = Buffer.from(otherPubKeyBase64, 'base64');
@@ -69,8 +66,8 @@ async function deriveSecret(privateKey, otherPubKeyBase64) {
 }
 
 /**
- * Orchestrates a single bot's lifecycle.
- * Manages socket connections, state, and decision-making logic.
+ * Single bot routine management.
+ * Handles socket comms and autonomous decision logic.
  */
 async function startBot(user) {
     const keyPair = await setupE2EE(user);
@@ -84,7 +81,7 @@ async function startBot(user) {
 
     socket.on('connect', () => console.log(`${botId} is now active.`));
     
-    // Bots listen for force_logout to gracefully shut down their individual routines
+    // Shut down on system reset
     socket.on('force_logout', () => {
         isActive = false;
         socket.disconnect();
@@ -93,7 +90,6 @@ async function startBot(user) {
     const runAction = async () => {
         if (!isActive) return;
 
-        // If not connected yet, just skip this turn and wait
         if (socket.connected) {
             const rand = Math.random();
 
@@ -103,6 +99,7 @@ async function startBot(user) {
                     if (!gigCheck || gigCheck.status !== 'IN_PROGRESS') {
                         myCurrentGig = null;
                     } else {
+                        // Send simulated messages
                         if (rand < 0.40) {
                             const conv = await Conversation.findOne({ gig: myCurrentGig._id }).populate('members', 'publicKey');
                             if (conv) {
@@ -121,6 +118,7 @@ async function startBot(user) {
                             }
                         }
                         
+                        // Finish gig (90% chance each turn when active)
                         if (rand > 0.90) {
                             const requester = await User.findById(myCurrentGig.requester);
                             const reqToken = jwt.sign({ id: requester._id, course: requester.course }, process.env.JWT_SECRET);
@@ -132,6 +130,7 @@ async function startBot(user) {
                         }
                     }
                 } else {
+                    // Create or pounce on gigs
                     if (rand < 0.25) {
                         const title = faker.hacker.phrase();
                         const isPHP = Math.random() > 0.3;
@@ -182,7 +181,7 @@ async function startBot(user) {
 }
 
 /**
- * Main swarm controller.
+ * Spawn bot swarm and manage lifecycle.
  */
 async function spawnSwarm() {
     console.log('🐝 Alab is gathering the bot swarm...');
@@ -195,7 +194,7 @@ async function spawnSwarm() {
 
         const cleanups = [];
         for (const bot of bots) {
-            // Non-blocking staggered starts
+            // Staggered non-blocking starts
             const cleanupPromise = new Promise(resolve => {
                 setTimeout(async () => {
                     resolve(await startBot(bot));
@@ -217,23 +216,20 @@ async function run() {
     
     let currentCleanups = await spawnSwarm();
 
-    // The simulator itself joins as a "monitor" socket to listen for system-wide resets
+    // Simulator joins as monitor to re-sync on resets
     const monitorToken = jwt.sign({ id: 'SYSTEM_SIMULATOR' }, process.env.JWT_SECRET);
     const monitorSocket = io(SERVER_URL, { path: '/api/socket.io', auth: { token: monitorToken } });
 
     monitorSocket.on('force_logout', async () => {
         console.log('🔄 Marketplace reset detected! Re-syncing bot swarm...');
         
-        // 1. Stop all current bots
         const activeCleanups = await Promise.all(currentCleanups);
         activeCleanups.forEach(cleanup => {
             if (typeof cleanup === 'function') cleanup();
         });
         
-        // 2. Wait for the seeder to finish
         await new Promise(r => setTimeout(r, 5000));
         
-        // 3. Spawn the new generation of bots
         currentCleanups = await spawnSwarm();
     });
 }

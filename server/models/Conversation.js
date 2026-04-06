@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
-// Tracks relationships between a gig and its squad members, including notification read status.
+// Squad relationships and notification tracking
 const conversationSchema = new mongoose.Schema({
     gig: { type: mongoose.Schema.Types.ObjectId, ref: 'Gig', required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     lastMessageAt: { type: Date, default: Date.now },
-    // Maps UserIDs to their last read timestamps for unread message tracking.
+    // UserID -> last read timestamp for unread tracking
     lastRead: {
         type: Map,
         of: Date,
@@ -13,7 +13,7 @@ const conversationSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Performance Optimization: Indexes for fast squad message retrieval and presence tracking
+// Optimize squad message retrieval and presence
 conversationSchema.index({ gig: 1 });
 conversationSchema.index({ members: 1 });
 conversationSchema.index({ lastMessageAt: -1 });
