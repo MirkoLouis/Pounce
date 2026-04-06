@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
     },
     // ECDH Public Key (Base64) used for deriving E2EE shared secrets.
     publicKey: String,
+    isBot: { type: Boolean, default: false },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now }
 }, { timestamps: true });

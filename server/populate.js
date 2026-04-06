@@ -6,6 +6,8 @@ const crypto = require('node:crypto').webcrypto;
 const { faker } = require('@faker-js/faker');
 const User = require('./models/User');
 const Gig = require('./models/Gig');
+const Conversation = require('./models/Conversation');
+const Message = require('./models/Message');
 const fs = require('fs');
 const http = require('http');
 
@@ -20,39 +22,56 @@ const allCourses = collegeData.colleges.flatMap(c => [
  * Seeds the database with a high volume of realistic student profiles and marketplace gigs.
  * Includes force-logout signaling to ensure UI state remains consistent across resets.
  */
-async function seed(numUsers = 10, numGigs = 30) {
+async function seed(numUsers = 10, numGigs = 30, isInternal = false) {
     try {
         // Broadcasts a logout signal to all connected clients before wiping the database.
-        try {
-            const serverPort = process.env.PORT || 5050;
-            http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
-                console.log('📢 Sent global logout signal to server.');
-            }).on('error', (e) => {
-                // Server might be down, ignore.
-            });
-            await new Promise(r => setTimeout(r, 1500));
-        } catch (e) { /* ignore */ }
+        if (!isInternal) {
+            try {
+                const serverPort = process.env.PORT || 5050;
+                http.get(`http://localhost:${serverPort}/api/system/force-logout-all`, (res) => {
+                    console.log('📢 Sent global logout signal to server.');
+                }).on('error', (e) => {
+                    // Server might be down, ignore.
+                });
+                await new Promise(r => setTimeout(r, 1500));
+            } catch (e) { /* ignore */ }
+        }
 
-        await mongoose.connect(process.env.MONGODB_URI);
+        // Only connect if not already connected (prevents errors when called from the main app)
+        if (mongoose.connection.readyState === 0) {
+            await mongoose.connect(process.env.MONGODB_URI);
+        }
+
         console.log('🐾 Alab is seeding the database with realistic Cats...');
 
-        await User.deleteMany({});
-        await Gig.deleteMany({});
+        // CRITICAL: We only delete bots and their gigs. 
+        // Real user accounts (isBot: false) and their public keys are preserved.
+        await User.deleteMany({ isBot: true });
+        await Gig.deleteMany({}); // Gigs are always refreshed for the marketplace feel
+        await Conversation.deleteMany({}); // Wipe history to prevent decryption mismatches
+        await Message.deleteMany({}); // Wipe messages to prevent orphaned history
 
         const hashedPassword = await bcrypt.hash('password', 10);
         const createdUsers = [];
         const credentials = [];
 
-        // Creates a static administrative/monitor account for development testing.
-        const monitorUser = new User({
-            name: "Mark Leo Bagood",
-            msu_email: "markleo.bagood@g.msuiit.edu.ph",
-            password: hashedPassword,
-            college: "College of Computer Studies",
-            course: "Bachelor of Science in Computer Science",
-            rating: 5.0,
-            auto_pounce_message: "I am monitoring the pride. 🐾"
-        });
+        // Creates or updates the static administrative/monitor account.
+        // Critical: We preserve the existing publicKey if it exists to avoid breaking E2EE history.
+        let monitorUser = await User.findOne({ msu_email: "markleo.bagood@g.msuiit.edu.ph" });
+        if (!monitorUser) {
+            monitorUser = new User({
+                name: "Mark Leo Bagood",
+                msu_email: "markleo.bagood@g.msuiit.edu.ph",
+                password: hashedPassword,
+                college: "College of Computer Studies",
+                course: "Bachelor of Science in Computer Science",
+                rating: 5.0,
+                auto_pounce_message: "I am monitoring the pride. 🐾",
+                isBot: false // Monitor is a real admin account
+            });
+        } else {
+            monitorUser.password = hashedPassword; // Reset password to default for testing
+        }
         await monitorUser.save();
         createdUsers.push(monitorUser);
         credentials.push({ email: monitorUser.msu_email, password: 'password', name: monitorUser.name });
@@ -88,7 +107,8 @@ async function seed(numUsers = 10, numGigs = 30) {
                 course: course,
                 rating: faker.number.float({ min: 3.5, max: 5, precision: 0.1 }),
                 auto_pounce_message: `Hello I'm ${firstName}, I'm a student from ${college.id} and I want to help you with this job.`,
-                publicKey: publicKeyBase64
+                publicKey: publicKeyBase64,
+                isBot: true // Simulated cats are marked as bots
             });
 
             await user.save();
@@ -124,17 +144,27 @@ async function seed(numUsers = 10, numGigs = 30) {
         }
         console.log(`✅ Created ${numGigs} Gigs.`);
 
-        console.log('\n🐾 --- READY TO POUNCE: SAMPLE CREDENTIALS ---');
-        console.table(credentials);
-        console.log('🐾 --------------------------------------------\n');
+        if (!isInternal) {
+            console.log('\n🐾 --- READY TO POUNCE: SAMPLE CREDENTIALS ---');
+            console.table(credentials);
+            console.log('🐾 --------------------------------------------\n');
+            console.log('🐾 Seeding complete!');
+        }
 
-        console.log('🐾 Seeding complete! Closing connection...');
-        process.exit();
+        return true;
     } catch (err) {
         console.error('❌ Error seeding:', err);
-        process.exit(1);
+        if (!isInternal) process.exit(1);
+        throw err;
     }
 }
 
-const args = process.argv.slice(2);
-seed(parseInt(args[0]) || 100, parseInt(args[1]) || 200);
+module.exports = { seed };
+
+// If run directly from CLI
+if (require.main === module) {
+    const args = process.argv.slice(2);
+    seed(parseInt(args[0]) || 100, parseInt(args[1]) || 200).then(() => {
+        process.exit(0);
+    });
+}

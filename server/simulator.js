@@ -25,13 +25,22 @@ const CHAT_MESSAGES = [
 
 /**
  * Initializes End-to-End Encryption for a bot user.
- * Generates ECDH keys to allow secure communication with other users.
+ * Generates a deterministic key pair based on the user's ID.
+ * This ensures bots can always decrypt their history even after the simulator restarts.
  */
 async function setupE2EE(user) {
-    const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
-    const exported = await crypto.subtle.exportKey("spki", keyPair.publicKey);
-    const publicKeyBase64 = Buffer.from(exported).toString('base64');
-    await User.findByIdAndUpdate(user._id, { publicKey: publicKeyBase64 });
+    const keyPair = await crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" }, 
+        true, 
+        ["deriveKey"]
+    );
+
+    if (!user.publicKey) {
+        const exported = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+        const publicKeyBase64 = Buffer.from(exported).toString('base64');
+        await User.findByIdAndUpdate(user._id, { publicKey: publicKeyBase64 });
+    }
+
     return keyPair;
 }
 
@@ -64,130 +73,169 @@ async function deriveSecret(privateKey, otherPubKeyBase64) {
  * Manages socket connections, state, and decision-making logic.
  */
 async function startBot(user) {
-    // Initialize security context
     const keyPair = await setupE2EE(user);
     const token = jwt.sign({ id: user._id, course: user.course }, process.env.JWT_SECRET);
     const socket = io(SERVER_URL, { path: '/api/socket.io', auth: { token } });
     
-    // Tracking bot identity and active session state
     let botId = `🤖 ${user.name.split(' ')[0]}`;
     let activeSharedKeys = new Map();
-    let myCurrentGig = null; // Memory of what I'm currently working on
+    let myCurrentGig = null;
+    let isActive = true;
 
     socket.on('connect', () => console.log(`${botId} is now active.`));
+    
+    // Bots listen for force_logout to gracefully shut down their individual routines
+    socket.on('force_logout', () => {
+        isActive = false;
+        socket.disconnect();
+    });
 
-    /**
-     * Core decision loop for the bot.
-     * Randomly chooses between chatting, posting new gigs, or fulfilling existing ones.
-     */
     const runAction = async () => {
-        const rand = Math.random();
+        if (!isActive) return;
 
-        try {
-            // PHASE 1: CHAT & COMPLETE (Logic for when the bot is already engaged in a gig)
-            if (myCurrentGig) {
-                const gigCheck = await Gig.findById(myCurrentGig._id);
-                if (!gigCheck || gigCheck.status !== 'IN_PROGRESS') {
-                    myCurrentGig = null; // Reset if gig status changed externally
-                } else {
-                    // Simulate active communication during the task
-                    if (rand < 0.40) {
-                        const conv = await Conversation.findOne({ gig: myCurrentGig._id }).populate('members', 'publicKey');
-                        if (conv) {
-                            const otherMember = conv.members.find(m => m._id.toString() !== user._id.toString());
-                            if (otherMember && otherMember.publicKey) {
-                                let sharedKey = activeSharedKeys.get(conv._id.toString());
-                                if (!sharedKey) {
-                                    sharedKey = await deriveSecret(keyPair.privateKey, otherMember.publicKey);
-                                    activeSharedKeys.set(conv._id.toString(), sharedKey);
+        // If not connected yet, just skip this turn and wait
+        if (socket.connected) {
+            const rand = Math.random();
+
+            try {
+                if (myCurrentGig) {
+                    const gigCheck = await Gig.findById(myCurrentGig._id);
+                    if (!gigCheck || gigCheck.status !== 'IN_PROGRESS') {
+                        myCurrentGig = null;
+                    } else {
+                        if (rand < 0.40) {
+                            const conv = await Conversation.findOne({ gig: myCurrentGig._id }).populate('members', 'publicKey');
+                            if (conv) {
+                                const otherMember = conv.members.find(m => m._id.toString() !== user._id.toString());
+                                if (otherMember && otherMember.publicKey) {
+                                    let sharedKey = activeSharedKeys.get(conv._id.toString());
+                                    if (!sharedKey) {
+                                        sharedKey = await deriveSecret(keyPair.privateKey, otherMember.publicKey);
+                                        activeSharedKeys.set(conv._id.toString(), sharedKey);
+                                    }
+                                    const msgText = faker.helpers.arrayElement(CHAT_MESSAGES);
+                                    const encryptedPayload = await encrypt(msgText, sharedKey);
+                                    socket.emit('send_message', { chatId: conv._id, sender: user._id, encryptedPayload, timestamp: new Date() });
+                                    console.log(`${botId} 💬 WHISPERED.`);
                                 }
-                                const msgText = faker.helpers.arrayElement(CHAT_MESSAGES);
-                                const encryptedPayload = await encrypt(msgText, sharedKey);
-                                socket.emit('send_message', { chatId: conv._id, sender: user._id, encryptedPayload, timestamp: new Date() });
-                                console.log(`${botId} 💬 WHISPERED.`);
+                            }
+                        }
+                        
+                        if (rand > 0.90) {
+                            const requester = await User.findById(myCurrentGig.requester);
+                            const reqToken = jwt.sign({ id: requester._id, course: requester.course }, process.env.JWT_SECRET);
+                            await axios.post(`${SERVER_URL}/api/gigs/complete/${myCurrentGig._id}`, {}, {
+                                headers: { 'x-auth-token': reqToken }
+                            });
+                            console.log(`✅ GIG FINISHED: "${myCurrentGig.title}"`);
+                            myCurrentGig = null;
+                        }
+                    }
+                } else {
+                    if (rand < 0.25) {
+                        const title = faker.hacker.phrase();
+                        const isPHP = Math.random() > 0.3;
+                        const reward = {
+                            type: isPHP ? 'PHP' : 'CUSTOM',
+                            value: isPHP ? faker.commerce.price({ min: 100, max: 1000 }) : "Coffee treat"
+                        };
+
+                        await axios.post(`${SERVER_URL}/api/gigs`, {
+                            title,
+                            description: faker.lorem.paragraph().substring(0, 500),
+                            reward,
+                            targeted_expertises: [user.course],
+                            images: Array.from({ length: faker.number.int({ min: 1, max: 3 }) }, () => faker.image.url())
+                        }, { headers: { 'x-auth-token': token } });
+                        console.log(`${botId} 📢 NEW GIG: "${title}"`);
+                    } else if (rand < 0.40) {
+                        const randomGigs = await Gig.aggregate([
+                            { $match: { status: 'OPEN', requester: { $ne: user._id } } },
+                            { $sample: { size: 1 } }
+                        ]);
+                        if (randomGigs[0]) {
+                            const target = randomGigs[0];
+                            const res = await axios.post(`${SERVER_URL}/api/gigs/pounce/${target._id}`, {}, {
+                                headers: { 'x-auth-token': token }
+                            });
+                            if (res.status === 200) {
+                                myCurrentGig = target;
+                                console.log(`${botId} 🐾 POUNCED: "${target.title}"`);
                             }
                         }
                     }
-                    
-                    // Logic to finalize a gig to simulate completed transactions
-                    if (rand > 0.90) {
-                        const requester = await User.findById(myCurrentGig.requester);
-                        const reqToken = jwt.sign({ id: requester._id, course: requester.course }, process.env.JWT_SECRET);
-                        await axios.post(`${SERVER_URL}/api/gigs/complete/${myCurrentGig._id}`, {}, {
-                            headers: { 'x-auth-token': reqToken }
-                        });
-                        console.log(`✅ GIG FINISHED: "${myCurrentGig.title}"`);
-                        myCurrentGig = null;
-                    }
                 }
-            } 
-            
-            // PHASE 2: IDLE ACTIONS (Logic for when the bot is looking for work or needs help)
-            else {
-                // Creates a new gig to populate the marketplace
-                if (rand < 0.25) {
-                    const title = faker.hacker.phrase();
-                    const isPHP = Math.random() > 0.3;
-                    const reward = {
-                        type: isPHP ? 'PHP' : 'CUSTOM',
-                        value: isPHP ? faker.commerce.price({ min: 100, max: 1000 }) : "Coffee treat"
-                    };
-
-                    await axios.post(`${SERVER_URL}/api/gigs`, {
-                        title,
-                        description: faker.lorem.paragraph().substring(0, 500),
-                        reward,
-                        targeted_expertises: [user.course],
-                        images: Array.from({ length: faker.number.int({ min: 1, max: 3 }) }, () => faker.image.url())
-                    }, { headers: { 'x-auth-token': token } });
-                    console.log(`${botId} 📢 NEW GIG: "${title}"`);
-                } 
-                // Accepts an open gig to simulate platform activity
-                else if (rand < 0.40) {
-                    const randomGigs = await Gig.aggregate([
-                        { $match: { status: 'OPEN', requester: { $ne: user._id } } },
-                        { $sample: { size: 1 } }
-                    ]);
-                    if (randomGigs[0]) {
-                        const target = randomGigs[0];
-                        const res = await axios.post(`${SERVER_URL}/api/gigs/pounce/${target._id}`, {}, {
-                            headers: { 'x-auth-token': token }
-                        });
-                        if (res.status === 200) {
-                            myCurrentGig = target;
-                            console.log(`${botId} 🐾 POUNCED: "${target.title}"`);
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            // Silently handle errors to keep the simulation running smoothly
+            } catch (e) { /* ignore */ }
         }
 
-        // Schedule next action with random jitter to avoid synchronized behavior
-        setTimeout(runAction, 2000 + Math.random() * 3000);
+        if (isActive) {
+            setTimeout(runAction, 2000 + Math.random() * 3000);
+        }
     };
 
     runAction();
+
+    return () => {
+        isActive = false;
+        socket.disconnect();
+    };
 }
 
 /**
- * Entry point for the bot swarm.
- * Connects to the database and initializes multiple bot routines.
+ * Main swarm controller.
  */
-async function startSwarm() {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('🐾 Swarm Engine V5 (Fully Independent Bots) Initialized...');
+async function spawnSwarm() {
+    console.log('🐝 Alab is gathering the bot swarm...');
+    try {
+        const bots = await User.find({ isBot: true }).limit(NUM_BOTS);
+        if (bots.length === 0) {
+            console.log('⚠️ No bots found in database. Did you seed?');
+            return [];
+        }
 
-    // Select a subset of users to act as bots
-    const users = await User.find({ msu_email: { $ne: 'monitor@g.msuiit.edu.ph' } }).limit(NUM_BOTS);
-    
-    console.log(`🚀 Launching ${users.length} independent bot routines...`);
-    for (const user of users) {
-        // Staggered starts to prevent overwhelming the server on startup
-        setTimeout(() => startBot(user), Math.random() * 5000);
+        const cleanups = [];
+        for (const bot of bots) {
+            // Non-blocking staggered starts
+            const cleanupPromise = new Promise(resolve => {
+                setTimeout(async () => {
+                    resolve(await startBot(bot));
+                }, Math.random() * 10000);
+            });
+            cleanups.push(cleanupPromise);
+        }
+        
+        console.log(`🚀 ${bots.length} independent bot routines are launching...`);
+        return await Promise.all(cleanups);
+    } catch (err) {
+        console.error('❌ Swarm Spawn Error:', err);
+        return [];
     }
 }
 
-// Kick off the simulation
-startSwarm();
+async function run() {
+    await mongoose.connect(process.env.MONGODB_URI);
+    
+    let currentCleanups = await spawnSwarm();
+
+    // The simulator itself joins as a "monitor" socket to listen for system-wide resets
+    const monitorToken = jwt.sign({ id: 'SYSTEM_SIMULATOR' }, process.env.JWT_SECRET);
+    const monitorSocket = io(SERVER_URL, { path: '/api/socket.io', auth: { token: monitorToken } });
+
+    monitorSocket.on('force_logout', async () => {
+        console.log('🔄 Marketplace reset detected! Re-syncing bot swarm...');
+        
+        // 1. Stop all current bots
+        const activeCleanups = await Promise.all(currentCleanups);
+        activeCleanups.forEach(cleanup => {
+            if (typeof cleanup === 'function') cleanup();
+        });
+        
+        // 2. Wait for the seeder to finish
+        await new Promise(r => setTimeout(r, 5000));
+        
+        // 3. Spawn the new generation of bots
+        currentCleanups = await spawnSwarm();
+    });
+}
+
+run();

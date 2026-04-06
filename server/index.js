@@ -73,6 +73,7 @@ app.post('/api/auth/login', authController.login);
 app.get('/api/auth/me', auth, authController.me);
 app.put('/api/auth/profile', auth, authController.updateProfile);
 app.get('/api/auth/backup', auth, authController.backupData);
+app.post('/api/auth/reset-database', auth, authController.resetDatabase);
 
 // Gig Routes
 app.get('/api/gigs/public', gigController.getPublicGigs); 

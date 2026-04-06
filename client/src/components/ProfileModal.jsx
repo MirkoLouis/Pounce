@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Lock, Mail, GraduationCap, MessageSquare, LogOut, Check, ArrowRight, Download, Loader2 } from 'lucide-react';
+import { X, User, Lock, Mail, GraduationCap, MessageSquare, LogOut, Check, ArrowRight, Download, Loader2, RotateCcw } from 'lucide-react';
 import collegeData from '../data/colleges.json';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     const navigate = useNavigate();
     
     // Tracking loading states for individual update actions to provide granular feedback
-    const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false, backup: false });
+    const [loading, setLoading] = useState({ name: false, academic: false, message: false, security: false, backup: false, reset: false });
     
     // Local state management for form inputs to allow pending changes before submission
     const [nameParts, setNameParts] = useState({ first: '', middle: '', last: '' });
@@ -52,8 +52,8 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
     };
 
     /**
-     * Downloads a JSON file containing the user's platform data.
-     * Useful for data portability and personal record keeping.
+     * Downloads a JSON file containing the entire database system dump.
+     * Complies with both Case Study (Backup) and NoSQL Activity (Full Document Retrieval) requirements.
      */
     const handleBackup = async () => {
         setLoading(prev => ({ ...prev, backup: true }));
@@ -62,7 +62,7 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
             const dataStr = JSON.stringify(res.data, null, 4);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
             
-            const exportFileDefaultName = `pounce_backup_${user.name.replace(/\s+/g, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.json`;
+            const exportFileDefaultName = `pounce_database_backup_${new Date().toISOString().slice(0,10)}.json`;
             
             const linkElement = document.createElement('a');
             linkElement.setAttribute('href', dataUri);
@@ -73,6 +73,26 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
             console.error(err);
         } finally {
             setLoading(prev => ({ ...prev, backup: false }));
+        }
+    };
+
+    /**
+     * Triggers a full marketplace reset (re-seeds the database).
+     * Only available to the Monitor account.
+     */
+    const handleReset = async () => {
+        if (!window.confirm("ARE YOU SURE? This will wipe all current gigs and bot conversations! 🐾")) return;
+        
+        setLoading(prev => ({ ...prev, reset: true }));
+        try {
+            const res = await api.post('/auth/reset-database');
+            alert(res.data.msg);
+            onClose(); // Close modal as user will be force-logged
+        } catch (err) {
+            alert(err.response?.data?.msg || "Reset failed");
+            console.error(err);
+        } finally {
+            setLoading(prev => ({ ...prev, reset: false }));
         }
     };
 
@@ -299,15 +319,32 @@ const ProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                         >
                             <LogOut className="w-4 h-4" /> Log Out 🐾
                         </button>
-                        <button 
-                            type="button"
-                            onClick={handleBackup}
-                            disabled={loading.backup}
-                            className="flex items-center gap-2 text-alab-orange font-black text-[10px] uppercase tracking-widest hover:bg-orange-50 px-4 py-2 rounded-xl transition-all disabled:opacity-50"
-                        >
-                            {loading.backup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                            Backup Data
-                        </button>
+                        {user?.msu_email === 'markleo.bagood@g.msuiit.edu.ph' ? (
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={handleBackup}
+                                    disabled={loading.backup}
+                                    className="flex items-center gap-2 text-alab-orange font-black text-[10px] uppercase tracking-widest hover:bg-orange-50 px-4 py-2 rounded-xl transition-all disabled:opacity-50"
+                                >
+                                    {loading.backup ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                                    Database Backup
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={handleReset}
+                                    disabled={loading.reset}
+                                    className="flex items-center gap-2 text-red-600 font-black text-[10px] uppercase tracking-widest hover:bg-red-50 px-4 py-2 rounded-xl transition-all disabled:opacity-50"
+                                >
+                                    {loading.reset ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 
+                                    Database Reset
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 px-4 py-2 text-slate-400 font-bold text-[9px] uppercase tracking-tighter italic">
+                                🐾 Data is handled with pride.
+                            </div>
+                        )}
                     </div>
                     <p className="text-[10px] font-black text-slate-300 uppercase italic">Pounce v1.0 • MSUIIT</p>
                 </div>

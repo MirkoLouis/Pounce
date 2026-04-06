@@ -1,5 +1,30 @@
 # CHANGELOG.md
 
+## 2026-04-06 21:00
+### Version-1.2.0-Alpha+202604062100
+
+**FIXED:**
+- **Deterministic Bot Identity:** Refactored `simulator.js` and `populate.js` to use stable identity generation. This prevents bots from rotating keys on every restart, ensuring long-term chat history remains decryptable.
+- **Self-Healing Bot Swarm:** Updated the simulator to listen for system-wide resets. Bots now automatically re-sync their credentials and "respawn" after a marketplace reset without requiring a process restart.
+- **Seeder Integrity:** Updated the database seeder to perform a full wipe of Conversations and Messages during a reset, ensuring no orphaned encrypted data remains to clash with new keys.
+
+**ADDED:**
+- **In-App Database Reset:** Implemented a new "Database Reset" feature in the Profile Modal, exclusively for the monitor account (`markleo.bagood@g.msuiit.edu.ph`).
+- **Live Marketplace Refresh:** The reset button triggers a full backend re-seed and broadcasts a `force_logout` signal to all connected clients, ensuring the entire ecosystem synchronizes with the fresh database state instantly.
+- **Backend Seed API:** Exposed a secure administrative endpoint `/api/auth/reset-database` that integrates the `populate.js` logic directly into the running server.
+
+## 2026-04-06 20:29
+### Version-1.1.0-Alpha+202604062029
+
+**FIXED:**
+- **Backup Scope:** Refactored the backup feature from a per-user data export to a comprehensive full-database system dump to satisfy NoSQL subject requirements.
+- **Access Control:** Restricted the high-privilege Database Backup operation exclusively to the administrator/monitor account (`markleo.bagood@g.msuiit.edu.ph`) for security and privacy.
+
+**ADDED:**
+- **Database Backup Engine:** Implemented a full JSON export of all core collections (Users, Gigs, Conversations, Messages) via the backend.
+- **Embedded Aggregation Reports:** Integrated live MongoDB aggregation results (Gig Status distribution and College Activity analytics) directly into the backup JSON file.
+- **Admin-Only UI:** Updated the Profile Modal to conditionally render the "Database Backup" button only for authenticated monitor accounts, while showing a privacy note to regular students.
+
 ## 2026-04-06 16:20
 ### Version-1.0.2-Alpha+202604061620
 

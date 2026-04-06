@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { seed } = require('../populate');
 
 // Handles new user registration, including password hashing and generating an initial authentication token.
 exports.register = async (req, res) => {
@@ -96,35 +97,91 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// Aggregates and exports all user-specific data to provide transparency and a portable backup for the user.
+// Triggers a database reset, wiping all bots and gigs while preserving real user identities.
+// This is an administrative action restricted to the Monitor/Admin account.
+exports.resetDatabase = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user.msu_email !== 'markleo.bagood@g.msuiit.edu.ph') {
+            return res.status(403).json({ msg: "Only the Monitor Cat can reset the marketplace! 🐾" });
+        }
+
+        // Trigger the internal seed process (100 users, 200 gigs by default)
+        await seed(100, 200, true);
+
+        // Broadcast a global logout signal via Socket.io to ensure all UIs refresh their state
+        // req.io is attached in index.js
+        req.io.emit('force_logout');
+
+        res.json({ msg: "Marketplace reset successfully! All Cats have been force-logged for synchronization. 🐾" });
+    } catch (err) {
+        console.error("❌ Database Reset Error:", err);
+        res.status(500).json({ msg: "Error resetting database" });
+    }
+};
+
+// Aggregates and exports all system-wide data to a JSON file to satisfy the database management and backup requirements.
+// Access restricted to the Monitor/Admin account for security.
 exports.backupData = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const user = await User.findById(req.user.id);
         
-        // Fetch all data related to the user
-        const userData = await User.findById(userId).select('-password');
-        const submittedGigs = await Gig.find({ requester: userId });
-        const pouncedGigs = await Gig.find({ pouncers: userId });
-        
-        // Find conversations the user is a member of
-        const conversations = await Conversation.find({ members: userId }).populate('gig', 'title');
-        
-        // Find messages sent by the user
-        const messages = await Message.find({ sender: userId });
+        // Security check: Only the monitor account can perform a full database backup
+        if (user.msu_email !== 'markleo.bagood@g.msuiit.edu.ph') {
+            return res.status(403).json({ msg: "Only the Monitor Cat can export the entire pride's data! 🐾" });
+        }
+
+        // Fetching all documents from core collections for a full database dump
+        const users = await User.find().select('-password');
+        const gigs = await Gig.find();
+        const conversations = await Conversation.find();
+        const messages = await Message.find();
+
+        // Perform Data Analysis using Aggregation (Satisfying Step 4 of NoSQL Activity)
+        const stats = await Gig.aggregate([
+            { $group: { _id: "$status", count: { $sum: 1 } } }
+        ]);
+
+        const collegeActivity = await Gig.aggregate([
+            { $match: { status: 'COMPLETED' } },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'requester',
+                    foreignField: '_id',
+                    as: 'requester_info'
+                }
+            },
+            { $unwind: '$requester_info' },
+            { $group: { _id: '$requester_info.college', totalGigs: { $sum: 1 } } },
+            { $sort: { totalGigs: -1 } }
+        ]);
 
         const backup = {
+            project: "Pounce (Alab-MSUIIT)",
+            description: "NoSQL Database System Backup",
             timestamp: new Date().toISOString(),
-            user: userData,
-            submittedGigs,
-            pouncedGigs,
-            conversations,
-            messages
+            meta: {
+                total_users: users.length,
+                total_gigs: gigs.length,
+                total_conversations: conversations.length,
+                total_messages: messages.length
+            },
+            database: {
+                users,
+                gigs,
+                conversations,
+                messages
+            },
+            analytics: {
+                gig_status_distribution: stats,
+                top_colleges_by_activity: collegeActivity
+            }
         };
 
         res.json(backup);
     } catch (err) {
-        console.error("❌ Backup Error:", err);
-        res.status(500).json({ msg: "Error generating backup" });
+        console.error("❌ Database Backup Error:", err);
+        res.status(500).json({ msg: "Error generating database backup" });
     }
 };
-
