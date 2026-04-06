@@ -138,7 +138,7 @@ async function startBot(user) {
                         description: faker.lorem.paragraph().substring(0, 500),
                         reward,
                         targeted_expertises: [user.course],
-                        images: []
+                        images: Array.from({ length: faker.number.int({ min: 1, max: 3 }) }, () => faker.image.url())
                     }, { headers: { 'x-auth-token': token } });
                     console.log(`${botId} 📢 NEW GIG: "${title}"`);
                 } 

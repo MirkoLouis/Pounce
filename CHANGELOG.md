@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## 2026-04-06 16:20
+### Version-1.0.2-Alpha+202604061620
+
+**FIXED:**
+- **Standardized Gig Titles:** Removed forced uppercase transformation in `GigDetailsModal.jsx` and `MyGigs.jsx` to ensure gig titles, requester names, and reward values match their original database case for consistent UI.
+- **Image Loading Logic:** Fixed a bug in `GigDetailsModal.jsx` where images were stuck in a loading state or showing "No Images Provided" when switching between gigs by implementing a `useEffect` reset.
+
+**ADDED:**
+- **Bot Request Images:** Updated the `simulator.js` engine to generate random image URLs for bot-created gigs, ensuring the marketplace remains visually complete and realistic.
+
 ## 2026-03-27 12:00
 ### Version-1.0.1-Beta+202603271200
 

@@ -118,7 +118,7 @@ const MyGigs = () => {
                                     }`}>
                                         {gig.status.replace('_', ' ')}
                                     </span>
-                                    <span className="text-[10px] font-black text-alab-orange uppercase bg-orange-50 px-3 py-1 rounded-full">
+                                    <span className="text-[10px] font-black text-alab-orange bg-orange-50 px-3 py-1 rounded-full">
                                         {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
                                     </span>
                                 </div>

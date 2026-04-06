@@ -13,7 +13,16 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
     
     // UI states for handling asynchronous actions and image loading
     const [loading, setLoading] = useState(false);
-    const [imageLoading, setImageLoading] = useState(gig?.images?.length > 0);
+    const [imageLoading, setImageLoading] = useState(true);
+
+    // Reset image loading state whenever a new gig is selected
+    React.useEffect(() => {
+        if (gig?.images?.length > 0) {
+            setImageLoading(true);
+        } else {
+            setImageLoading(false);
+        }
+    }, [gig]);
 
     // Guard clause to prevent rendering if no gig is selected or modal is closed
     if (!isOpen || !gig) return null;
@@ -99,7 +108,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                     {gig.reward?.type} REWARD
                                 </span>
                             </div>
-                            <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter leading-tight mb-3 uppercase">
+                            <h2 className="text-2xl font-black text-slate-900 italic tracking-tighter leading-tight mb-3">
                                 {gig.title}
                             </h2>
                             <div className="flex items-center gap-4">
@@ -109,7 +118,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                     </div>
                                     <div>
                                         <p className="text-[16px] font-black text-slate-400 uppercase tracking-widest leading-none">Requester</p>
-                                        <p className="text-md font-black text-slate-900 uppercase">{gig.requester?.name || "The Cat"}</p>
+                                        <p className="text-md font-black text-slate-900">{gig.requester?.name || "The Cat"}</p>
                                     </div>
                                 </div>
                             </div>
@@ -136,12 +145,12 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                 <div className="flex flex-col gap-1.5">
                                     {gig.targeted_expertises && gig.targeted_expertises.length > 0 ? (
                                         gig.targeted_expertises.map((expertise, index) => (
-                                            <p key={index} className="text-[12px] font-black text-slate-900 uppercase italic border-l-2 border-orange-100 pl-3 py-0.5 leading-tight">
+                                            <p key={index} className="text-[12px] font-black text-slate-900 italic border-l-2 border-orange-100 pl-3 py-0.5 leading-tight">
                                                 {expertise}
                                             </p>
                                         ))
                                     ) : (
-                                        <p className="text-xs font-black text-slate-900 uppercase italic">Open to All Programs</p>
+                                        <p className="text-xs font-black text-slate-900 italic">Open to All Programs</p>
                                     )}
                                 </div>
                             </div>
@@ -152,7 +161,7 @@ const GigDetailsModal = ({ gig, isOpen, onClose }) => {
                                     <Zap className="w-4 h-4 text-orange-100" />
                                     <p className="text-[12px] font-black text-orange-100 uppercase tracking-widest">Payout</p>
                                 </div>
-                                <p className="text-lg font-black italic uppercase leading-tight">
+                                <p className="text-lg font-black italic leading-tight">
                                     {gig.reward?.type === 'PHP' ? `₱${gig.reward?.value}` : gig.reward?.value}
                                 </p>
                             </div>
