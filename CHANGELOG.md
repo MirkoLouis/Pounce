@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## 2026-04-11 01:35
+### Version-1.3.0-Beta+202604110135
+
+**FIXED:**
+- **Dynamic API Routing:** Refactored `client/src/services/api.js` and `client/src/components/GlobalSetup.jsx` to dynamically switch between local and production backend URLs using the `VITE_API_URL` environment variable.
+- **Production Port Mapping:** Ensured the backend server correctly binds to the Render-assigned `PORT` environment variable for online accessibility.
+
+**ADDED:**
+- **Cloud Infrastructure:** Successfully migrated the ecosystem to **Render** (Node.js Web Service) and **Vercel** (Vite Frontend).
+- **Persistent Cloud Database:** Integrated **MongoDB Atlas** as the primary persistent data store with a verified connection string.
+- **Remote Seeding:** Validated the ability to seed the live cloud database remotely using the `populate.js` script.
+- **Production Deployment Strategy:** Documented the full deployment process for Vercel, Render, and Atlas in `README.md`.
+
 ## 2026-04-10 08:57
 ### Version-1.2.2-Alpha+202604100857
 

@@ -1,4 +1,4 @@
-# Pounce: The Alab Gig Market 🐾 (v1.2.1-Release)
+# Pounce: The Alab Gig Market 🐾 (v1.3.0-Beta)
 
 **Pounce** is a hyper-localized micro-task marketplace designed specifically for the **Mindanao State University - Iligan Institute of Technology (MSUIIT)** community. It connects students (the "CATS") who need tasks done with fellow students who have specialized expertise.
 
@@ -6,7 +6,7 @@
 In the MSUIIT ecosystem, every "Cat" has a specialty. **Pounce** allows students to post "Gigs" and target specific academic expertise. Supports **Squad Gigs** for team-based collaboration in a secure group environment.
 
 ## 🚀 Key Features
-- **Unified Ecosystem Launcher (`launch.sh`):** Concurrent Server, Client, and Bot Swarm startup with database safety checks.
+- **Online Deployment:** Fully hosted on **Vercel** (Frontend) and **Render** (Backend) with **MongoDB Atlas** for persistent storage.
 - **The Pouncer Dashboard:** Categorized carousels with **Infinite Scrolling** and real-time feed injections.
 - **WhisperSquad (Group E2EE):** Zero-knowledge, fully encrypted communication using ECDH P-256 + AES-GCM 256.
 - **Admin Control Center:** Monitor account exclusive features including **Full JSON Database Backups** and **Marketplace Resets** (Seeding).
@@ -16,14 +16,18 @@ In the MSUIIT ecosystem, every "Cat" has a specialty. **Pounce** allows students
 ## 🛠 Tech Stack
 - **Frontend:** React (TypeScript/Vite), Framer Motion, Tailwind CSS, Lucide Icons.
 - **Backend:** Node.js (Express), Socket.io (Real-time events).
-- **Database:** MongoDB (Mongoose) with optimized indexing and complex aggregation.
+- **Database:** MongoDB Atlas (Mongoose) with optimized indexing and complex aggregation.
 - **Security:** JWT Authentication + Web Crypto API for End-to-End Encryption.
+
+## 🌍 Live Deployment
+- **Backend (Render):** `https://pounce-q51h.onrender.com`
+- **Frontend (Vercel):** *[Your Vercel URL]*
 
 ## 🏁 Getting Started
 
 ### 1. Prerequisites
 - **Node.js** (v18+)
-- **MongoDB** (Ensure `mongod` is running on port 27017)
+- **MongoDB Atlas Connection**
 
 ### 2. Setup
 ```bash
@@ -32,10 +36,12 @@ npm install
 
 ### 3. Environment
 ```bash
+# In server/ folder
 cp .env.example .env
+# Ensure MONGODB_URI and JWT_SECRET are set.
 ```
 
-### 4. Launch
+### 4. Launch (Local Dev)
 ```bash
 ./launch.sh
 # OR
@@ -43,7 +49,7 @@ npm start
 ```
 
 ## 🤖 Advanced CLI Commands
-- **`npm run seed`**: Populates the database with realistic students and gigs.
+- **`node server/populate.js`**: Populates the database with realistic students and gigs.
 - **`npm run bot`**: Spawns 50+ autonomous bots for live marketplace simulation.
 
 ## 🎓 MSUIIT Colleges Covered
