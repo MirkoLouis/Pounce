@@ -1,4 +1,4 @@
-# Pounce: The Alab Gig Market 🐾 (v1.3.0-Beta)
+# Pounce: The Alab Gig Market 🐾 (v1.3.0-Release)
 
 **Pounce** is a hyper-localized micro-task marketplace designed specifically for the **Mindanao State University - Iligan Institute of Technology (MSUIIT)** community. It connects students (the "CATS") who need tasks done with fellow students who have specialized expertise.
 
@@ -12,6 +12,20 @@ In the MSUIIT ecosystem, every "Cat" has a specialty. **Pounce** allows students
 - **Admin Control Center:** Monitor account exclusive features including **Full JSON Database Backups** and **Marketplace Resets** (Seeding).
 - **Self-Healing Bot Swarm:** Autonomous bots with deterministic identities that re-sync automatically after system resets.
 - **Top Colleges Leaderboard:** Real-time visualization of academic activity via MongoDB aggregation pipelines.
+
+## 📸 Screenshots
+
+| Login | Sign Up |
+|-------|---------|
+| ![Log in](./documentation/Log%20in.png) | ![Sign Up](./documentation/Sign%20Up.png) |
+
+| Dashboard | Gig Details |
+|-----------|-------------|
+| ![Dashboard](./documentation/Dashboard.png) | ![Gig Details](./documentation/Gig%20Details.png) |
+
+| Chats | My Gigs |
+|-------|---------|
+| ![Chats](./documentation/Chats.png) | ![My Gigs](./documentation/My%20Gigs.png) |
 
 ## 🛠 Tech Stack
 - **Frontend:** React (TypeScript/Vite), Framer Motion, Tailwind CSS, Lucide Icons.
