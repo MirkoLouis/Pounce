@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Axios instance for standardized API comms
 const api = axios.create({
-    baseURL: '/api', 
+    baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api', 
 });
 
 // Attach x-auth-token to every request
