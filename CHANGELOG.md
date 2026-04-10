@@ -1,7 +1,7 @@
 # CHANGELOG.md
 
 ## 2026-04-11 01:35
-### Version-1.3.0-Beta+202604110135
+### Version-1.3.0-Release+202604110135
 
 **FIXED:**
 - **Dynamic API Routing:** Refactored `client/src/services/api.js` and `client/src/components/GlobalSetup.jsx` to dynamically switch between local and production backend URLs using the `VITE_API_URL` environment variable.
