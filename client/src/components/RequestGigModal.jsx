@@ -352,8 +352,3 @@ const RequestGigModal = ({ isOpen, onClose, onGigCreated }) => {
 };
 
 export default RequestGigModal;
->
-    );
-};
-
-export default RequestGigModal;
